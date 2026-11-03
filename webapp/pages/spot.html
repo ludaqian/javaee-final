@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>景点详情 · 云栖山景区</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/portal.css">
+</head>
+<body>
+<main class="app" data-title="景点详情" data-back="1" data-right="icon:map:pages/map.html" data-bar="none">
+
+  <div class="spot-hero" id="hero">
+    <div id="heroScene" style="position:absolute;inset:0"></div>
+    <button class="play" id="playBtn"></button>
+  </div>
+
+  <div class="pad">
+    <div class="card" style="margin-top:-24px">
+      <div class="flex ac jb">
+        <div>
+          <div class="b s18" id="name"></div>
+          <div class="s12 muted mt6" id="cat"></div>
+        </div>
+        <span class="tag orange" id="hot"></span>
+      </div>
+      <div class="flex g8 mt12 wrap" id="meta"></div>
+    </div>
+
+    <div class="audio-bar mt12" id="audioBar">
+      <button class="ab-btn" id="abBtn"></button>
+      <div class="f1">
+        <div class="s13 b">语音导览</div>
+        <div class="s12 muted" id="abTip">点击按钮收听讲解</div>
+      </div>
+      <div class="ab-wave" id="abWave">
+        <i></i><i></i><i></i><i></i><i></i>
+      </div>
+    </div>
+
+    <div class="card mt12">
+      <div class="card-hd"><h3>景点介绍</h3></div>
+      <div class="s13" style="line-height:1.9" id="desc"></div>
+    </div>
+
+    <div class="card mt12">
+      <div class="card-hd"><h3>导览文稿</h3><button class="s12 primary" id="btnRead">朗读全文</button></div>
+      <div class="s13 muted" style="line-height:1.9" id="audioText"></div>
+    </div>
+
+    <div class="card mt12" style="background:#fff8ec">
+      <div class="s13 b mb8">游玩提示</div>
+      <div class="s13" style="line-height:1.9" id="tips"></div>
+    </div>
+
+    <div class="padt"><div class="sec-title"><h2>附近景点</h2></div></div>
+    <div class="padx"><div id="nearBox"></div></div>
+  </div>
+
+  <div style="height:78px"></div>
+</main>
+
+<div class="footbar">
+  <a class="btn ghost" style="padding:0 22px" href="map.html">查看地图</a>
+  <a class="btn primary f1" href="booking.html">预约入园门票</a>
+</div>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  var id = C.qs('id') || 's1';
+  var s = C.DB.spot(id);
+  if (!s) { location.replace('map.html'); return; }
+  var all = C.DB.spots();
+
+  document.title = s.name + ' · 云栖山景区';
+
+  $('#heroScene').innerHTML = s.imgUrl
+    ? '<img src="' + s.imgUrl + '" alt="' + C.esc(s.name) + '" style="width:100%;height:100%;object-fit:cover">'
+    : C.scene(s.k, 200);
+  $('#playBtn').innerHTML = C.icon('play', '', 2);
+
+  $('#name').textContent = s.name;
+  $('#cat').textContent = s.cat + ' · 云栖山国家森林公园';
+  $('#hot').textContent = s.hot ? '热门打卡' : '小众秘境';
+  $('#hot').style.display = s.hot ? '' : 'none';
+  $('#meta').innerHTML =
+    '<span class="tag green">' + C.icon('clock') + ' 建议 ' + C.esc(s.duration) + '</span>' +
+    '<span class="tag blue">开放 ' + C.esc(s.open) + '</span>' +
+    '<span class="tag gray">' + C.esc(s.cat) + '</span>';
+  $('#desc').textContent = s.desc;
+  $('#audioText').textContent = s.audio;
+  $('#tips').textContent = s.tips;
+
+  /* 语音：优先播放后台上传的音频文件，其次使用浏览器朗读文稿 */
+  var playing = false, audioEl = null;
+  $('#abBtn').innerHTML = C.icon('play');
+  if (s.audioUrl) {
+    audioEl = new Audio(s.audioUrl);
+    audioEl.addEventListener('ended', function () { playing = false; sync(); });
+    $('#abTip').textContent = '已配置讲解音频，点击播放';
+  }
+  function toggle() {
+    if (s.audioUrl) {
+      if (audioEl.paused) { audioEl.play(); playing = true; }
+      else { audioEl.pause(); playing = false; }
+      sync();
+      return;
+    }
+    if (playing) {
+      C.stopSpeak(); playing = false;
+    } else {
+      playing = true;
+      C.speak(s.audio, function () { playing = false; sync(); });
+    }
+    sync();
+  }
+  function sync() {
+    $('#abBtn').innerHTML = playing ? C.icon('pause') : C.icon('play');
+    $('#abBtn').style.background = playing ? 'var(--accent)' : 'var(--primary)';
+    $('#abTip').textContent = playing ? '正在播放：' + s.name + ' 语音讲解' : '点击按钮收听讲解';
+    $('#playBtn').innerHTML = playing ? C.icon('pause', '', 2) : C.icon('play', '', 2);
+    $('#hero').classList.toggle('playing', playing);
+    $('#abWave').style.visibility = playing ? 'visible' : 'hidden';
+  }
+  $('#abBtn').onclick = toggle;
+  $('#playBtn').onclick = toggle;
+  $('#btnRead').onclick = toggle;
+  $('#abWave').style.visibility = 'hidden';
+
+  /* 附近景点：距离最近的两个（按坐标） */
+  var near = all.filter(function (x) { return x.id !== s.id; })
+    .map(function (x) { return { s: x, d: Math.pow(x.x - s.x, 2) + Math.pow(x.y - s.y, 2) }; })
+    .sort(function (a, b) { return a.d - b.d; }).slice(0, 2).map(function (n) { return n.s; });
+  $('#nearBox').innerHTML = near.map(function (n) {
+    return '<a class="list mb12" style="display:block" href="spot.html?id=' + n.id + '"><div class="cell">' +
+      '<div class="thumb" style="width:54px;height:44px;border-radius:8px;overflow:hidden;flex:none">' + C.thumb(n.k) + '</div>' +
+      '<div class="f1"><b class="s14">' + C.esc(n.name) + '</b><div class="s12 muted mt6">' + C.esc(n.cat) + ' · 步行约 ' +
+      Math.max(5, Math.round(Math.sqrt(Math.pow(n.x - s.x, 2) + Math.pow(n.y - s.y, 2)) * 6)) + ' 分钟</div></div>' +
+      '<span class="arrow">' + C.icon('right') + '</span></div></a>';
+  }).join('');
+})();
+</script>
+</body>
+</html>

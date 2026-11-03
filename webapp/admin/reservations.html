@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>游客预约记录 · 云栖山景区管理后台</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/admin.css">
+</head>
+<body>
+<div class="admin-shell" data-nav="reservations">
+  <main class="admin-main" data-crumb="运营管理 / 游客预约记录">
+    <div class="admin-body">
+
+      <div class="stats mb16" id="stats" style="grid-template-columns:repeat(3,1fr)"></div>
+
+      <div class="panel">
+        <div class="p-hd">
+          <h3>实名预约记录</h3>
+          <div class="filters">
+            <button class="btn outline sm" id="btnExport">导出实名记录</button>
+          </div>
+        </div>
+        <div class="p-bd">
+          <div class="filters mb12">
+            <select class="select" id="fStatus">
+              <option value="all">全部状态</option>
+              <option value="pending">待支付</option>
+              <option value="booked">已预约</option>
+              <option value="verified">已核销</option>
+              <option value="cancelled">已取消</option>
+            </select>
+            <input class="input" type="date" id="fDate">
+            <input class="input" id="fKw" placeholder="姓名 / 身份证号 / 手机号" style="width:240px">
+            <button class="btn primary sm" id="btnSearch">查询</button>
+            <button class="btn ghost sm" id="btnReset">重置</button>
+          </div>
+          <div style="overflow-x:auto"><table class="table" id="tb"></table></div>
+          <div class="pager"><span class="s12 muted" id="count"></span></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+
+  function collect() {
+    return C.Orders.records({
+      status: $('#fStatus').value,
+      date: $('#fDate').value,
+      kw: $('#fKw').value.trim()
+    });
+  }
+
+  function render() {
+    var list = collect();
+    var all = C.Orders.records({});
+    $('#stats').innerHTML = [
+      { n: all.length, c: '累计实名预约记录', ic: 'users', bg: '#e6f7f0', col: '#0f8a6a' },
+      { n: all.filter(function (r) { return r.status === 'verified'; }).length, c: '已核验入园人次', ic: 'checkcircle', bg: '#e7f1ff', col: '#1c7ed6' },
+      { n: new Set(all.map(function (r) { return r.idcard; })).size, c: '独立游客人数', ic: 'user', bg: '#fff4e0', col: '#f59f00' }
+    ].map(function (s) {
+      return '<div class="stat"><div class="ic-box" style="background:' + s.bg + ';color:' + s.col + '">' + C.icon(s.ic) + '</div>' +
+        '<div class="f1"><div class="num">' + s.n + '</div><div class="cap">' + s.c + '</div></div></div>';
+    }).join('');
+
+    $('#tb').innerHTML =
+      '<tr><th>订单号</th><th>游客姓名</th><th>身份证号</th><th>手机号</th><th>票种</th><th>游玩日期</th><th>时段</th><th>状态</th><th>核销信息</th></tr>' +
+      (list.length ? list.map(function (r) {
+        var st = C.statusOf(r.status);
+        return '<tr><td class="s12">' + r.no + '</td>' +
+          '<td class="b">' + C.esc(r.name) + '</td>' +
+          '<td class="s12">' + C.esc(r.idcard) + '</td>' +
+          '<td class="s12">' + C.esc(r.phone) + '</td>' +
+          '<td>' + C.esc(r.ticket) + '</td>' +
+          '<td class="s12">' + r.date + '</td>' +
+          '<td class="s12">' + r.time + '</td>' +
+          '<td><span class="tag ' + st.cls + '">' + st.text + '</span></td>' +
+          '<td class="s12">' + (r.verifiedAt ? C.esc(r.verifier) + ' · ' + C.esc(r.gate) + ' · ' + C.fmtDateTime(r.verifiedAt) : '--') + '</td></tr>';
+      }).join('') : '<tr><td colspan="9">' + C.emptyHtml('没有符合条件的预约记录', '🗂') + '</td></tr>');
+    $('#count').textContent = '共 ' + list.length + ' 条实名记录';
+  }
+
+  $('#btnSearch').onclick = render;
+  $('#btnReset').onclick = function () { $('#fStatus').value = 'all'; $('#fDate').value = ''; $('#fKw').value = ''; render(); };
+  $('#fKw').onkeydown = function (e) { if (e.key === 'Enter') render(); };
+
+  $('#btnExport').onclick = function () {
+    var list = collect();
+    if (!list.length) { C.toast('当前没有可导出的记录', 'err'); return; }
+    C.exportCSV('实名预约记录_' + C.dstr(C.today(), 0) + '.csv',
+      ['订单号', '游客姓名', '身份证号', '手机号', '票种', '游玩日期', '时段', '状态', '核销员', '核销口', '核销时间'],
+      list.map(function (r) {
+        return [r.no, r.name, r.idcard, r.phone, r.ticket, r.date, r.time,
+          C.statusOf(r.status).text, r.verifier || '', r.gate || '', r.verifiedAt ? C.fmtDateTime(r.verifiedAt) : ''];
+      }));
+    C.toast('已导出 ' + list.length + ' 条记录', 'ok');
+  };
+
+  render();
+})();
+</script>
+</body>
+</html>

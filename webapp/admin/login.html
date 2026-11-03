@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>管理后台登录 · 云栖山景区</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/admin.css">
+</head>
+<body class="admin">
+<div class="admin-login">
+  <div class="left">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px">
+      <div style="width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.2);display:grid;place-items:center" id="lg"></div>
+      <div><b style="font-size:16px">云栖山景区</b><div class="s12" style="opacity:.85">智慧票务管理后台</div></div>
+    </div>
+    <h1>让景区运营一目了然</h1>
+    <p class="s15">票务、库存、订单、客流、核销一体化管理</p>
+    <div class="feats">
+      <div><span id="f1"></span>票种与日期库存精细化管理，防止超售</div>
+      <div><span id="f2"></span>订单全链路追踪，支持手动退票与导出</div>
+      <div><span id="f3"></span>实名预约记录查询，满足监管要求</div>
+      <div><span id="f4"></span>景点导览资源与公告内容统一维护</div>
+    </div>
+  </div>
+  <div class="right">
+    <form class="form" id="form">
+      <h2>管理员登录</h2>
+      <div class="s13 muted mb12">请使用景区分配的管理员账号登录</div>
+      <div class="field"><label>账号</label><input class="input" id="user" placeholder="请输入账号" value="admin"></div>
+      <div class="field"><label>密码</label><input class="input" id="pwd" type="password" placeholder="请输入密码" value="123456"></div>
+      <div class="field"><label>身份</label>
+        <select class="select" id="role">
+          <option value="admin">景区管理员</option>
+          <option value="checker">检票员（核销端）</option>
+        </select>
+      </div>
+      <div class="flex ac jb mb12 s12 muted">
+        <label class="flex ac g4"><span class="switch on" id="rem"></span>记住账号</label>
+        <a href="javascript:void(0)" id="forgot" class="primary">忘记密码？</a>
+      </div>
+      <button class="btn primary block lg" type="submit" id="btn">登 录</button>
+      <div class="tc mt12 s12 muted">演示账号：admin / 123456（管理员）、checker01 / 123456（检票员）</div>
+      <div class="tc mt12"><a class="s12 primary" href="../index.html">← 返回游客端首页</a></div>
+    </form>
+  </div>
+</div>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  $('#lg').innerHTML = C.icon('mountain');
+  ['ticket', 'order', 'users', 'notice'].forEach(function (n, i) { $('#f' + (i + 1)).innerHTML = C.icon(n); });
+  $('#rem').onclick = function () { $('#rem').classList.toggle('on'); };
+  $('#forgot').onclick = function () { C.toast('请联系系统管理员重置密码', 'err'); };
+
+  $('#form').onsubmit = function (e) {
+    e.preventDefault();
+    var u = $('#user').value.trim(), p = $('#pwd').value, role = $('#role').value;
+    var user = C.DB.users().filter(function (x) { return x.username === u && x.role === role; })[0];
+    if (!user) { C.toast('账号不存在', 'err'); return; }
+    if (user.pwd !== p) { C.toast('密码错误，演示密码 123456', 'err'); return; }
+    if (!user.status) { C.toast('该账号已被停用', 'err'); return; }
+    if (role === 'checker') {
+      C.Auth.checker.set({ id: user.id, name: user.name, username: user.username, gate: user.gate, perms: user.perms });
+      C.toast('登录成功，正在进入核销端', 'ok');
+      setTimeout(function () { location.href = '../verify/scan.html'; }, 600);
+    } else {
+      C.Auth.admin.set({ id: user.id, name: user.name, username: user.username, role: 'admin', perms: user.perms });
+      C.toast('登录成功，正在进入后台', 'ok');
+      setTimeout(function () { location.href = 'dashboard.html'; }, 600);
+    }
+  };
+})();
+</script>
+</body>
+</html>

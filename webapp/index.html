@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>云栖山国家森林公园 · 智慧票务预约平台</title>
+<link rel="stylesheet" href="assets/css/base.css">
+<link rel="stylesheet" href="assets/css/portal.css">
+</head>
+<body>
+<main class="app" data-title="首页" data-bar="portal" data-tab="home" data-head="0">
+
+  <header class="home-head">
+    <div class="flex ac jb">
+      <div class="loc">
+        <span style="width:16px;height:16px;display:inline-block;vertical-align:-2px" id="locIcon"></span>
+        <b>云栖山国家森林公园</b>
+      </div>
+      <a class="ic-btn" href="pages/notices.html" title="公告" id="bellIcon"></a>
+    </div>
+    <div class="search" id="searchBox"><span id="searchIcon"></span>搜索景点 / 攻略 / 公告</div>
+  </header>
+
+  <div class="pad">
+    <!-- 轮播图 -->
+    <div class="slider" id="slider" style="margin-top:-14px">
+      <div class="slides" id="slides"></div>
+      <div class="dots" id="dots"></div>
+    </div>
+
+    <!-- 快捷入口 -->
+    <div class="quick mt12">
+      <a href="pages/booking.html" class="q1"></a>
+      <a href="pages/map.html" class="q2"></a>
+      <a href="pages/orders.html" class="q3"></a>
+      <a href="pages/help.html" class="q4"></a>
+    </div>
+
+    <!-- 公告 -->
+    <div class="notice-bar mt12" id="noticeBar">
+      <span class="nb-tag">景区公告</span>
+      <div class="nb-list"><ul id="noticeRoll"></ul></div>
+      <a class="s12 muted" href="pages/notices.html">更多›</a>
+    </div>
+
+    <!-- 快速预约 -->
+    <div class="card mt12" style="background:linear-gradient(135deg,#eafaf4,#f6fdfa)">
+      <div class="flex ac jb">
+        <div>
+          <div class="b s15">快速预约入园</div>
+          <div class="s12 muted mt6">今日剩余名额 <b class="primary" id="todayLeft">--</b> 张 · 分时段限量</div>
+        </div>
+        <a class="btn primary sm" href="pages/booking.html">立即预约</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- 热门套餐 -->
+  <div class="padt">
+    <div class="sec-title"><h2>热门票种 / 套餐</h2><a class="more" href="pages/scenic.html">全部票种›</a></div>
+  </div>
+  <div class="padx"><div class="grid-2" id="hotTickets"></div></div>
+
+  <!-- 景区介绍 -->
+  <div class="padt">
+    <div class="sec-title"><h2>景区概览</h2><a class="more" href="pages/scenic.html">查看详情›</a></div>
+  </div>
+  <div class="padx">
+    <div class="sc-card" id="scenicCard"></div>
+  </div>
+
+  <!-- 热门景点 -->
+  <div class="padt">
+    <div class="sec-title"><h2>必玩景点</h2><a class="more" href="pages/map.html">电子导览地图›</a></div>
+  </div>
+  <div class="strip" id="hotSpots"></div>
+
+  <div class="pad">
+    <div class="card tc" style="background:#f6fbf9">
+      <div class="s13 muted">客服热线 0571-8888 6688 · 每日 08:00-18:00</div>
+      <div class="s12 muted mt6">本系统为面向对象课程设计演示项目，所有数据均为模拟数据</div>
+    </div>
+  </div>
+
+</main>
+
+<script src="assets/js/core.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  var scenic = C.DB.scenic();
+
+  $('#locIcon').innerHTML = C.icon('location');
+  $('#bellIcon').innerHTML = C.icon('bell');
+  $('#searchIcon').innerHTML = '<span style="width:15px;height:15px;display:inline-block;vertical-align:-2px">' + C.icon('search') + '</span>';
+  $('#searchBox').onclick = function () { location.href = 'pages/scenic.html'; };
+
+  /* 轮播图 */
+  var banners = [
+    { k: 0, title: '秋日红叶节 · 11 月 15 日开幕', sub: '古径寻宝 / 银杏摄影大赛 / 山货市集' },
+    { k: 2, title: '望岳台云海 · 日出最佳观赏点', sub: '海拔 682 米，俯瞰钱塘江' },
+    { k: 3, title: '实名分时段预约 · 快速入园', sub: '扫码核验，30 秒完成检票' }
+  ];
+  $('#slides').innerHTML = banners.map(function (b) {
+    return '<div class="slide"><div style="height:170px;position:relative">' + C.scene(b.k, 200) +
+      '<div class="cap"><div class="b s16">' + C.esc(b.title) + '</div><div class="s12">' + C.esc(b.sub) + '</div></div>' +
+      '</div></div>';
+  }).join('');
+  $('#dots').innerHTML = banners.map(function (b, i) { return '<i class="' + (i ? '' : 'on') + '"></i>'; }).join('');
+  var idx = 0;
+  setInterval(function () {
+    idx = (idx + 1) % banners.length;
+    $('#slides').style.transform = 'translateX(' + (-idx * 100) + '%)';
+    C.$$('#dots i').forEach(function (d, i) { d.className = i === idx ? 'on' : ''; });
+  }, 4000);
+
+  /* 快捷入口 */
+  var quicks = [
+    ['q1', 'ticket', '门票预约', '#0f8a6a,#14a37f'],
+    ['q2', 'map', '电子导览', '#1c7ed6,#339af0'],
+    ['q3', 'order', '我的订单', '#f59f00,#ffb43a'],
+    ['q4', 'notice', '公告须知', '#e8590c,#fd7e14']
+  ];
+  quicks.forEach(function (q) {
+    var el = $('.' + q[0]);
+    el.innerHTML = '<span class="qi" style="background:linear-gradient(135deg,' + q[3] + ')">' + C.icon(q[1]) + '</span>' + q[2];
+  });
+
+  /* 公告滚动 */
+  var ns = C.DB.notices();
+  var roll = ns.slice(0, 3).map(function (n) {
+    return '<li>' + C.esc('【' + n.type + '】' + n.title) + '</li>';
+  });
+  roll.push(roll[0]);
+  $('#noticeRoll').innerHTML = roll.join('');
+  $('#noticeBar').onclick = function (e) { if (!e.target.closest('a')) location.href = 'pages/notices.html'; };
+
+  /* 今日余量 */
+  var today = C.dstr(C.today(), 0);
+  $('#todayLeft').textContent = C.Inventory.avail(today);
+
+  /* 热门票种 */
+  var hots = C.DB.tickets(true).filter(function (t) { return t.hot; }).slice(0, 4);
+  $('#hotTickets').innerHTML = hots.map(function (t) {
+    return '<div class="sc-card" onclick="location.href=\'pages/booking.html?ticket=' + t.id + '\'">' +
+      '<div class="thumb" style="height:90px;position:relative">' + C.scene(t.id.charCodeAt(1) % 6, 200) +
+      (t.tag ? '<span class="badge">' + C.esc(t.tag) + '</span>' : '') + '</div>' +
+      '<div class="body"><div class="b s13 ell">' + C.esc(t.name) + '</div>' +
+      '<div class="flex ac jb mt6"><span class="price" style="color:#e03131;font-weight:700">¥' + t.price + '</span>' +
+      '<a class="btn primary sm" href="pages/booking.html?ticket=' + t.id + '">预约</a></div></div></div>';
+  }).join('');
+
+  /* 景区卡片 */
+  $('#scenicCard').innerHTML =
+    '<div class="thumb" style="height:130px;position:relative">' + C.scene(1, 200) +
+    '<span class="badge">' + C.esc(scenic.level) + '</span></div>' +
+    '<div class="body">' +
+    '<div class="flex ac jb"><b class="s15">' + C.esc(scenic.name) + '</b>' +
+    '<span class="tag green">' + C.esc(scenic.open) + '</span></div>' +
+    '<div class="s12 muted mt6 flex ac"><span style="width:14px;height:14px;display:inline-block;vertical-align:-2px">' + C.icon('location') + '</span>&nbsp;' + C.esc(scenic.address) + '</div>' +
+    '<div class="s12 muted mt6 ell2">' + C.esc(scenic.desc) + '</div>' +
+    '</div>';
+
+  /* 必玩景点 */
+  var spots = C.DB.spots().filter(function (s) { return s.hot; });
+  $('#hotSpots').innerHTML = spots.map(function (s) {
+    return '<a class="sp-card" href="pages/spot.html?id=' + s.id + '">' +
+      '<div class="thumb" style="height:80px">' + C.scene(s.k, 200) + '</div>' +
+      '<div class="b s12 ell">' + C.esc(s.name) + '</div>' +
+      '<div class="s12 muted ell">' + C.esc(s.cat) + '</div></a>';
+  }).join('');
+})();
+</script>
+</body>
+</html>

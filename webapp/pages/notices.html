@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>景区公告 · 云栖山景区</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/portal.css">
+</head>
+<body>
+<main class="app" data-title="景区公告" data-back="1" data-bar="none">
+
+  <div class="padx">
+    <div class="chips" id="types"></div>
+  </div>
+
+  <div class="pad" id="list"></div>
+  <div style="height:16px"></div>
+</main>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  var TYPES = ['全部', '限流', '闭园', '预约', '活动', '须知'];
+  var cur = '全部';
+  var openId = null;
+
+  function renderTypes() {
+    $('#types').innerHTML = TYPES.map(function (t) {
+      return '<div class="chip' + (t === cur ? ' on' : '') + '" data-t="' + t + '">' + t + '</div>';
+    }).join('');
+    C.$$('#types .chip').forEach(function (el) {
+      el.onclick = function () { cur = el.getAttribute('data-t'); renderTypes(); render(); };
+    });
+  }
+
+  function tagCls(t) {
+    return { '限流': 'orange', '闭园': 'red', '预约': 'blue', '活动': 'green', '须知': 'gray' }[t] || 'gray';
+  }
+
+  function render() {
+    var list = C.DB.notices().filter(function (n) { return cur === '全部' || n.type === cur; });
+    if (!list.length) { $('#list').innerHTML = C.emptyHtml('暂无该类型公告', '📢'); return; }
+    $('#list').innerHTML = list.map(function (n) {
+      var open = openId === n.id;
+      return '<div class="card" data-id="' + n.id + '" style="padding:0;overflow:hidden">' +
+        '<div class="cell" style="padding:12px 14px">' +
+        '<div class="f1">' +
+        '<div class="flex ac g8"><span class="tag ' + tagCls(n.type) + '">' + C.esc(n.type) + '</span>' +
+        (n.top ? '<span class="tag red">置顶</span>' : '') +
+        '<span class="s12 muted">' + n.date + '</span></div>' +
+        '<div class="b s14 mt6">' + C.esc(n.title) + '</div>' +
+        (open ? '<div class="s13 muted mt8" style="line-height:1.9">' + C.esc(n.content) + '</div>' : '') +
+        '</div>' +
+        '<span class="arrow" style="transform:rotate(' + (open ? 90 : 0) + 'deg)">' + C.icon('right') + '</span>' +
+        '</div></div>';
+    }).join('');
+    C.$$('#list .card').forEach(function (el) {
+      el.onclick = function () {
+        var id = el.getAttribute('data-id');
+        openId = openId === id ? null : id;
+        render();
+      };
+    });
+  }
+
+  renderTypes();
+  render();
+  /* 默认展开第一条置顶公告 */
+  var first = C.DB.notices()[0];
+  if (first) { openId = first.id; render(); }
+})();
+</script>
+</body>
+</html>

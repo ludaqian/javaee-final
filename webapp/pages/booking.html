@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>门票预约 · 云栖山景区</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/portal.css">
+</head>
+<body>
+<main class="app" data-title="门票预约" data-back="1" data-bar="none">
+
+  <div class="pad">
+    <div class="card" style="padding:12px 14px">
+      <div class="steps">
+        <div class="st on"><span class="n">1</span>选择票种</div>
+        <div class="line"></div>
+        <div class="st"><span class="n">2</span>确认订单</div>
+        <div class="line"></div>
+        <div class="st"><span class="n">3</span>支付</div>
+      </div>
+    </div>
+
+    <!-- 票种 -->
+    <div class="card mt12">
+      <div class="card-hd"><h3>选择票种</h3><span class="more">可预约时段 08:00-18:00</span></div>
+      <div id="ticketBox"></div>
+    </div>
+
+    <!-- 日期 -->
+    <div class="card mt12">
+      <div class="card-hd"><h3>游玩日期</h3><span class="more" id="capTip"></span></div>
+      <div class="date-strip" id="dateStrip"></div>
+      <div class="card-hd mt12"><h3>入园时段</h3></div>
+      <div class="chips" id="timeBox"></div>
+    </div>
+
+    <!-- 数量与游客 -->
+    <div class="card mt12">
+      <div class="card-hd"><h3>购票数量</h3>
+        <div class="flex ac g8">
+          <button class="btn ghost sm" id="btnMinus" style="width:32px;padding:0">－</button>
+          <b id="qtyText" style="min-width:22px;text-align:center">1</b>
+          <button class="btn ghost sm" id="btnPlus" style="width:32px;padding:0">＋</button>
+        </div>
+      </div>
+      <div class="s12 muted" id="limitTip"></div>
+      <div class="card-hd mt12"><h3>游客实名信息</h3><span class="more">须与入园证件一致</span></div>
+      <div id="visitorBox"></div>
+    </div>
+
+    <!-- 联系人 -->
+    <div class="card mt12">
+      <div class="card-hd"><h3>联系人</h3></div>
+      <div class="field"><label>联系人姓名</label><input class="input" id="ctName" placeholder="请输入姓名"></div>
+      <div class="field" style="margin:0"><label>手机号码</label><input class="input" id="ctPhone" type="tel" maxlength="11" placeholder="用于接收订单短信"></div>
+    </div>
+
+    <div class="card mt12" style="background:#f6fbf9">
+      <label class="flex ac g8 s12 muted">
+        <span class="switch" id="agreeSw"></span>
+        <span>我已阅读并同意《预约须知》与《退票规则》</span>
+      </label>
+      <a class="s12 primary" href="help.html">查看完整规则›</a>
+    </div>
+  </div>
+
+  <div style="height:78px"></div>
+</main>
+
+<div class="footbar">
+  <div class="f1">
+    <div class="s12 muted">合计 <span class="b" id="qtySum">1</span> 张</div>
+    <div style="color:#e03131;font-weight:700" id="amtSum">¥0.00</div>
+  </div>
+  <button class="btn primary" style="padding:0 30px" id="btnNext">下一步</button>
+</div>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  var tickets = C.DB.tickets(true);
+  var sel = {
+    ticketId: C.qs('ticket') || tickets[0].id,
+    date: C.dstr(C.today(), 0),
+    time: '',
+    qty: 1
+  };
+  var users = C.Auth.visitor.get();
+
+  /* ---------- 票种 ---------- */
+  function renderTickets() {
+    $('#ticketBox').innerHTML = tickets.map(function (t) {
+      return '<div class="ticket' + (t.id === sel.ticketId ? ' sel' : '') + '" data-id="' + t.id + '">' +
+        '<div class="tk-thumb">' + C.thumb(t.id.charCodeAt(1) % 6) + '<div class="tk-tip">' + C.esc(t.cat) + '</div></div>' +
+        '<div class="f1"><div class="flex ac jb"><b class="s14">' + C.esc(t.name) + '</b>' +
+        (t.tag ? '<span class="tag orange">' + C.esc(t.tag) + '</span>' : '') + '</div>' +
+        '<div class="s12 muted mt6">' + C.esc(t.desc) + '</div>' +
+        '<div class="s12 muted mt6">入园凭证：' + C.esc(t.need) + '</div>' +
+        '<div class="flex ac jb mt6"><span class="price">¥' + t.price + '<small> / 张</small></span>' +
+        '<span class="s12 muted">限购 ' + t.limit + ' 张</span></div></div></div>';
+    }).join('');
+    C.$$('#ticketBox .ticket').forEach(function (el) {
+      el.onclick = function () {
+        sel.ticketId = el.getAttribute('data-id');
+        sel.qty = 1;
+        renderTickets(); renderQty(); renderAmount();
+      };
+    });
+  }
+
+  /* ---------- 日期 ---------- */
+  function renderDates() {
+    var t = C.today();
+    $('#dateStrip').innerHTML = [0, 1, 2, 3, 4, 5, 6].map(function (i) {
+      var d = C.dstr(t, i);
+      var left = C.Inventory.avail(d);
+      return '<div class="d' + (d === sel.date ? ' on' : '') + (left <= 0 ? ' full' : '') + '" data-d="' + d + '">' +
+        '<div class="s12">' + C.dateLabel(d) + '</div>' +
+        '<div class="dd">' + d.slice(5).replace('-', '/') + '</div>' +
+        '<div class="left">' + (left > 0 ? '余 ' + left : '约满') + '</div></div>';
+    }).join('');
+    C.$$('#dateStrip .d').forEach(function (el) {
+      el.onclick = function () {
+        if (el.classList.contains('full')) { C.toast('该日期名额已满，请选择其他日期', 'err'); return; }
+        sel.date = el.getAttribute('data-d'); sel.time = '';
+        renderDates(); renderTimes(); renderQty(); renderAmount();
+      };
+    });
+    var iv = C.Inventory.get(sel.date);
+    $('#capTip').textContent = iv ? '当日总名额 ' + iv.total + ' · 已约 ' + iv.used : '';
+  }
+
+  /* ---------- 时段 ---------- */
+  function timeLeft(t, i) {
+    var avail = C.Inventory.avail(t.date);
+    var v = Math.floor(avail / 5) - ((i * 7 + t.date.charCodeAt(9) * 3) % 40);
+    return Math.max(0, v);
+  }
+  function renderTimes() {
+    var tk = C.DB.ticket(sel.ticketId);
+    var times = tk.times;
+    $('#timeBox').innerHTML = times.map(function (tm, i) {
+      if (tm === '全天') return '<div class="chip on" data-t="全天">全天可用</div>';
+      var left = timeLeft(sel, i);
+      return '<div class="chip' + (tm === sel.time ? ' on' : '') + (left <= 0 ? ' disabled' : '') + '" data-t="' + tm + '">' +
+        tm + ' <span class="s12 muted">' + (left > 0 ? '余' + left : '约满') + '</span></div>';
+    }).join('');
+    C.$$('#timeBox .chip').forEach(function (el) {
+      el.onclick = function () {
+        if (el.classList.contains('disabled')) { C.toast('该时段已约满', 'err'); return; }
+        sel.time = el.getAttribute('data-t'); renderTimes(); renderAmount();
+      };
+    });
+  }
+
+  /* ---------- 数量 / 游客 ---------- */
+  function maxQty() {
+    var tk = C.DB.ticket(sel.ticketId);
+    return Math.max(1, Math.min(tk.limit, C.Inventory.avail(sel.date), 10));
+  }
+  function renderQty() {
+    var m = maxQty();
+    if (sel.qty > m) sel.qty = m;
+    $('#qtyText').textContent = sel.qty;
+    var tk = C.DB.ticket(sel.ticketId);
+    $('#limitTip').textContent = '该票种每单限购 ' + tk.limit + ' 张，当前可预约 ' + m + ' 张';
+    renderVisitors();
+  }
+  function renderVisitors() {
+    var box = $('#visitorBox');
+    var olds = {};
+    C.$$('[data-vn]', box).forEach(function (el) { olds[el.getAttribute('data-vn')] = el.value; });
+    var oldc = {};
+    C.$$('[data-vc]', box).forEach(function (el) { oldc[el.getAttribute('data-vc')] = el.value; });
+    var html = '';
+    for (var i = 0; i < sel.qty; i++) {
+      html += '<div class="card mt8" style="margin:0 0 8px;box-shadow:none;background:#f7fbfa;padding:10px 12px">' +
+        '<div class="s12 muted mb8">游客 ' + (i + 1) + (i === 0 ? '（主游客）' : '') + '</div>' +
+        '<div class="field"><label>姓名</label><input class="input" data-vn="' + i + '" placeholder="请输入证件姓名" value="' + C.esc(olds[i] || '') + '"></div>' +
+        '<div class="field" style="margin:0"><label>身份证号</label><input class="input" data-vc="' + i + '" maxlength="18" placeholder="18 位身份证号" value="' + C.esc(oldc[i] || '') + '"></div>' +
+        '</div>';
+    }
+    box.innerHTML = html;
+  }
+  function renderAmount() {
+    var tk = C.DB.ticket(sel.ticketId);
+    $('#qtySum').textContent = sel.qty;
+    $('#amtSum').textContent = C.money(tk.price * sel.qty);
+  }
+
+  $('#btnMinus').onclick = function () { if (sel.qty > 1) { sel.qty--; renderQty(); renderAmount(); } };
+  $('#btnPlus').onclick = function () {
+    if (sel.qty >= maxQty()) { C.toast('已达可预约上限', 'err'); return; }
+    sel.qty++; renderQty(); renderAmount();
+  };
+  $('#agreeSw').onclick = function () { $('#agreeSw').classList.toggle('on'); };
+
+  /* ---------- 提交 ---------- */
+  $('#btnNext').onclick = function () {
+    if (!sel.time) { C.toast('请选择入园时段', 'err'); return; }
+    if (!$('#agreeSw').classList.contains('on')) { C.toast('请先阅读并同意预约须知', 'err'); return; }
+    var tk = C.DB.ticket(sel.ticketId);
+    var visitors = [];
+    for (var i = 0; i < sel.qty; i++) {
+      var n = ($('[data-vn="' + i + '"]').value || '').trim();
+      var c = ($('[data-vc="' + i + '"]').value || '').trim().toUpperCase();
+      if (n.length < 2) { C.toast('请填写游客 ' + (i + 1) + ' 的姓名', 'err'); return; }
+      if (!/^\d{17}[\dX]$/.test(c)) { C.toast('游客 ' + (i + 1) + ' 身份证号格式有误', 'err'); return; }
+      visitors.push({ name: n, idcard: c });
+    }
+    var phone = ($('#ctPhone').value || '').trim();
+    var cname = ($('#ctName').value || '').trim();
+    if (!cname) { C.toast('请填写联系人姓名', 'err'); return; }
+    if (!/^1\d{10}$/.test(phone)) { C.toast('手机号码格式有误', 'err'); return; }
+
+    localStorage.setItem('sab_draft', JSON.stringify({
+      ticketId: sel.ticketId, ticket: tk.name, date: sel.date, time: sel.time,
+      qty: sel.qty, price: tk.price, visitors: visitors, contact: { name: cname, phone: phone }
+    }));
+    location.href = 'order-confirm.html';
+  };
+
+  /* ---------- 初始化 ---------- */
+  renderTickets(); renderDates(); renderTimes(); renderQty(); renderAmount();
+  if (users) { $('#ctName').value = users.name || ''; $('#ctPhone').value = users.phone || ''; }
+})();
+</script>
+</body>
+</html>

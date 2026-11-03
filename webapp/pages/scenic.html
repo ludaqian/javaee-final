@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>景区详情 · 云栖山国家森林公园</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/portal.css">
+</head>
+<body>
+<main class="app" data-title="景区详情" data-back="1" data-bar="none">
+
+  <div class="spot-hero" id="hero" style="height:200px"></div>
+
+  <div class="pad" style="margin-top:-30px">
+    <div class="card" id="infoCard"></div>
+  </div>
+
+  <div class="padx">
+    <div class="tabs" id="tabs">
+      <div class="tab on" data-t="0">景区介绍</div>
+      <div class="tab" data-t="1">游玩须知</div>
+      <div class="tab" data-t="2">交通指南</div>
+    </div>
+  </div>
+
+  <div class="pad"><div class="card" id="tabBody"></div></div>
+
+  <div class="padt"><div class="sec-title"><h2>票价列表</h2><span class="more">价格以预约当日为准</span></div></div>
+  <div class="padx" id="ticketList"></div>
+
+  <!-- 必玩景点 -->
+  <div class="padt"><div class="sec-title"><h2>园内景点</h2><a class="more" href="map.html">查看地图›</a></div></div>
+  <div class="strip" id="spotStrip"></div>
+  <div style="height:74px"></div>
+</main>
+
+<div class="footbar">
+  <div class="f1">
+    <div class="s12 muted">成人票</div>
+    <div style="color:#e03131;font-weight:700">¥98 <span class="s12 muted">起</span></div>
+  </div>
+  <a class="btn primary" style="padding:0 28px" href="booking.html">立即预约</a>
+</div>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  var s = C.DB.scenic();
+
+  $('#hero').innerHTML = C.scene(1, 200) +
+    '<div style="position:absolute;left:0;right:0;bottom:0;padding:14px 16px 46px;' +
+    'background:linear-gradient(transparent,rgba(0,0,0,.45));color:#fff">' +
+    '<div class="b s20">' + C.esc(s.name) + '</div>' +
+    '<div class="s12">' + C.esc(s.level) + ' · ' + C.esc(s.area) + '</div></div>';
+
+  $('#infoCard').innerHTML =
+    '<div class="info-row"><span class="k">开放时间</span><span class="b">' + C.esc(s.open) + '</span></div>' +
+    '<div class="info-row"><span class="k">景区地址</span><span>' + C.esc(s.address) + '</span></div>' +
+    '<div class="info-row"><span class="k">咨询电话</span><span>' + C.esc(s.phone) + '</span></div>' +
+    '<div class="info-row"><span class="k">森林覆盖率</span><span>96.4%</span></div>' +
+    '<div class="info-row"><span class="k">建议游玩</span><span>4 - 6 小时</span></div>' +
+    '<div class="info-row" style="border:0"><span class="k">最大承载量</span><span>' + C.DB.settings().maxPerDay + ' 人 / 日</span></div>';
+
+  var bodies = [
+    '<div class="s13" style="line-height:1.9">' + C.esc(s.desc) + '</div>' +
+    '<div class="mt12 flex g8 wrap">' +
+    ['古径徒步', '瀑布观景', '高山索道', '亲子游船', '红叶摄影', '禅院祈福'].map(function (t) {
+      return '<span class="tag green">' + t + '</span>';
+    }).join('') + '</div>',
+
+    '<ol class="s13" style="line-height:2;padding-left:18px;list-style:decimal">' +
+    s.tips.map(function (t) { return '<li>' + C.esc(t) + '</li>'; }).join('') + '</ol>',
+
+    '<div class="s13" style="line-height:2">' +
+    '<div><b>自驾</b>：导航"云栖山游客中心"，市区出发约 40 分钟，停车场 1200 车位（5 元 / 小时）</div>' +
+    '<div class="mt8"><b>公交</b>：地铁 6 号线至霞鸣街站，换乘景区专线 Y8 路直达南门</div>' +
+    '<div class="mt8"><b>旅游巴士</b>：杭州东站旅游集散中心每日 08:00 / 13:00 两班直达</div>' +
+    '<div class="mt8"><b>园内交通</b>：观光车 20 元 / 次（当日不限次 40 元），索道往返 80 元</div></div>'
+  ];
+  $('#tabBody').innerHTML = bodies[0];
+  $('#tabs').onclick = function (e) {
+    var t = e.target.closest('.tab');
+    if (!t) return;
+    C.$$('.tab', $('#tabs')).forEach(function (x) { x.classList.remove('on'); });
+    t.classList.add('on');
+    $('#tabBody').innerHTML = bodies[+t.getAttribute('data-t')];
+  };
+
+  /* 票价列表 */
+  $('#ticketList').innerHTML = C.DB.tickets(true).map(function (t) {
+    return '<div class="ticket">' +
+      '<div class="tk-thumb">' + C.thumb(t.id.charCodeAt(1) % 6) + '<div class="tk-tip">' + C.esc(t.cat) + '</div></div>' +
+      '<div class="f1">' +
+      '<div class="flex ac jb"><b class="s14">' + C.esc(t.name) + '</b>' +
+      (t.tag ? '<span class="tag orange">' + C.esc(t.tag) + '</span>' : '') + '</div>' +
+      '<div class="s12 muted mt6 ell">' + C.esc(t.desc) + '</div>' +
+      '<div class="flex ac jb mt6"><span class="price">¥' + t.price + '<small> / 张</small></span>' +
+      '<a class="btn outline sm" href="booking.html?ticket=' + t.id + '">选择</a></div>' +
+      '</div></div>';
+  }).join('') +
+    '<div class="card mt12" style="background:#f6fbf9"><div class="s12 muted">' +
+    '<b>优惠说明：</b>6 周岁以下或身高 1.2m 以下儿童免票；现役军人、消防救援人员、残疾人凭有效证件免票；60 周岁以上长者购买长者票。免票人员仍需在公众号预约 0 元票。</div></div>';
+
+  /* 景点 */
+  $('#spotStrip').innerHTML = C.DB.spots().map(function (sp) {
+    return '<a class="sp-card" href="spot.html?id=' + sp.id + '">' +
+      '<div class="thumb" style="height:80px">' + C.scene(sp.k, 200) + '</div>' +
+      '<div class="b s12 ell">' + C.esc(sp.name) + '</div>' +
+      '<div class="s12 muted ell">' + C.esc(sp.cat) + '</div></a>';
+  }).join('');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>核销结果 · 云栖山景区核销端</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/portal.css">
+</head>
+<body>
+<main class="app" data-title="核销结果" data-back="0" data-login="checker" data-bar="none">
+
+  <div class="pad">
+    <div class="card tc" style="padding:26px 16px">
+      <div class="result-icon" id="rIcon"></div>
+      <div class="b s20" id="rTitle"></div>
+      <div class="s13 muted mt8" id="rDesc"></div>
+    </div>
+
+    <div class="card mt12" id="infoCard"></div>
+
+    <div class="card mt12" id="actionCard"></div>
+  </div>
+  <div style="height:20px"></div>
+</main>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  var no = C.qs('no'), r = C.qs('r') || 'notfound';
+  var o = C.Orders.byNo(no);
+  var me = C.Auth.checker.get();
+  if (!me) { location.replace('login.html'); return; }
+
+  var REASON = {
+    used: { t: '核销失败 · 凭证已使用', d: '该订单二维码此前已完成核销，请勿重复放行', ic: 'xcircle' },
+    expired: { t: '核销失败 · 预约已过期', d: '该订单的游玩日期已过，凭证失效', ic: 'xcircle' },
+    cancelled: { t: '核销失败 · 订单已取消', d: '该订单已退票或取消，不可入园', ic: 'xcircle' },
+    unpaid: { t: '核销失败 · 订单未支付', d: '请先引导游客完成支付后再入园', ic: 'xcircle' },
+    notfound: { t: '核销失败 · 无效凭证', d: '未找到该二维码对应的订单，请核对后重试', ic: 'xcircle' }
+  };
+
+  if (r === 'ok') {
+    $('#rIcon').className = 'result-icon ok';
+    $('#rIcon').innerHTML = C.icon('check', '', 2.4);
+    $('#rTitle').textContent = '核销成功';
+    $('#rDesc').textContent = '请放行 ' + (o ? o.qty : 0) + ' 位游客，祝您工作顺利';
+    $('#actionCard').innerHTML =
+      '<div class="s13 muted tc">本次核销已记录：' + (me ? me.name + ' · ' + me.gate : '--') + '</div>' +
+      '<div class="flex g8 mt12"><a class="btn outline f1" href="records.html">核销记录</a>' +
+      '<a class="btn primary f1" href="scan.html">继续扫码</a></div>';
+  } else {
+    var info = REASON[r] || REASON.notfound;
+    $('#rIcon').className = 'result-icon no';
+    $('#rIcon').innerHTML = C.icon(info.ic, '', 2.2);
+    $('#rTitle').textContent = info.t;
+    $('#rDesc').textContent = info.d;
+    $('#actionCard').innerHTML =
+      '<div class="s13 muted tc">如遇争议，请核对游客身份证后使用手动核销查询</div>' +
+      '<div class="flex g8 mt12"><a class="btn outline f1" href="manual.html">手动核销</a>' +
+      '<a class="btn primary f1" href="scan.html">重新扫码</a></div>';
+  }
+
+  if (o) {
+    var prev = o.verifier && o.status === 'verified' && r !== 'ok';
+    $('#infoCard').innerHTML =
+      '<div class="info-row"><span class="k">订单号</span><span>' + o.no + '</span></div>' +
+      '<div class="info-row"><span class="k">票种 / 数量</span><span class="b">' + C.esc(o.ticket) + ' × ' + o.qty + '</span></div>' +
+      '<div class="info-row"><span class="k">游玩日期</span><span>' + o.date + ' ' + o.time + '</span></div>' +
+      '<div class="info-row"><span class="k">游客</span><span>' + o.visitors.map(function (v) { return C.esc(v.name); }).join('、') + '</span></div>' +
+      '<div class="info-row"><span class="k">联系人</span><span>' + C.esc(o.contact.name) + ' ' + C.esc(o.contact.phone) + '</span></div>' +
+      '<div class="info-row" style="border:0"><span class="k">订单状态</span>' +
+      '<span class="tag ' + C.statusOf(o.status).cls + '">' + C.statusOf(o.status).text + '</span></div>' +
+      (prev && o.verifiedAt ? '<div class="s12 muted mt8">原核销记录：' + C.esc(o.verifier) + ' · ' + C.esc(o.gate) + ' · ' + C.fmtDateTime(o.verifiedAt) + '</div>' : '');
+  } else {
+    $('#infoCard').innerHTML = '<div class="s13 muted tc">凭证内容：<b>' + C.esc(no || '（空）') + '</b></div>';
+  }
+})();
+</script>
+</body>
+</html>

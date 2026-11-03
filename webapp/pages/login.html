@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>登录 / 注册 · 云栖山景区</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/portal.css">
+</head>
+<body>
+<main class="app" data-title="登录 / 注册" data-back="1" data-bar="none">
+
+  <div class="login-head">
+    <div class="logo" id="logo"></div>
+    <h1>云栖山景区</h1>
+    <div class="s13 muted mt6">智慧票务预约平台 · 游客端</div>
+  </div>
+
+  <div class="pad">
+    <div class="seg" id="seg">
+      <button class="on" data-m="login">登录</button>
+      <button data-m="reg">注册</button>
+    </div>
+
+    <!-- 登录 -->
+    <div id="pLogin">
+      <div class="seg mb12" id="seg2" style="background:#f2f7f6">
+        <button class="on" data-w="pwd">密码登录</button>
+        <button data-w="code">验证码登录</button>
+      </div>
+      <div class="field"><label>手机号</label><input class="input" id="lgPhone" type="tel" maxlength="11" placeholder="请输入手机号"></div>
+      <div class="field" id="fPwd"><label>密码</label><input class="input" id="lgPwd" type="password" placeholder="请输入密码"></div>
+      <div class="field hide" id="fCode">
+        <label>验证码</label>
+        <div class="flex g8">
+          <input class="input f1" id="lgCode" maxlength="4" placeholder="4 位验证码">
+          <button class="btn outline" style="width:110px" id="btnSend">获取验证码</button>
+        </div>
+      </div>
+      <button class="btn primary block lg mt8" id="btnLogin">登录</button>
+      <div class="tc mt12 s12 muted">未注册手机号将自动提示注册 · 演示账号 13812345678 / 123456</div>
+    </div>
+
+    <!-- 注册 -->
+    <div id="pReg" class="hide">
+      <div class="field"><label>姓名</label><input class="input" id="rgName" placeholder="请输入真实姓名"></div>
+      <div class="field"><label>手机号</label><input class="input" id="rgPhone" type="tel" maxlength="11" placeholder="请输入手机号"></div>
+      <div class="field">
+        <label>短信验证码</label>
+        <div class="flex g8">
+          <input class="input f1" id="rgCode" maxlength="4" placeholder="演示验证码 8888">
+          <button class="btn outline" style="width:110px" id="btnSend2">获取验证码</button>
+        </div>
+      </div>
+      <div class="field"><label>密码</label><input class="input" id="rgPwd" type="password" placeholder="6-16 位密码"></div>
+      <div class="field"><label>确认密码</label><input class="input" id="rgPwd2" type="password" placeholder="请再次输入密码"></div>
+      <div class="field">
+        <label>身份证号（选填，用于实名预约）</label>
+        <input class="input" id="rgId" maxlength="18" placeholder="18 位身份证号">
+      </div>
+      <button class="btn primary block lg mt8" id="btnReg">注册并登录</button>
+    </div>
+  </div>
+
+  <div class="tc">
+    <a class="s12 muted" href="../index.html">先去逛逛，稍后再登录</a>
+  </div>
+  <div style="height:20px"></div>
+</main>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  $('#logo').innerHTML = C.icon('mountain', '', 1.6);
+  var from = C.qs('from');
+
+  function back() { location.replace(from || 'profile.html'); }
+
+  $('#seg').onclick = function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    C.$$('#seg button').forEach(function (x) { x.classList.remove('on'); });
+    b.classList.add('on');
+    var reg = b.getAttribute('data-m') === 'reg';
+    $('#pLogin').classList.toggle('hide', reg);
+    $('#pReg').classList.toggle('hide', !reg);
+  };
+
+  var way = 'pwd';
+  $('#seg2').onclick = function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    C.$$('#seg2 button').forEach(function (x) { x.classList.remove('on'); });
+    b.classList.add('on');
+    way = b.getAttribute('data-w');
+    $('#fPwd').classList.toggle('hide', way === 'code');
+    $('#fCode').classList.toggle('hide', way !== 'code');
+  };
+
+  function sendCode(btn) {
+    var phone = way === 'code' ? $('#lgPhone').value : $('#rgPhone').value;
+    if (!/^1\d{10}$/.test(phone)) { C.toast('请输入正确的手机号', 'err'); return; }
+    var n = 60;
+    btn.classList.add('disabled');
+    btn.textContent = n + 's 后重发';
+    var t = setInterval(function () {
+      n--; btn.textContent = n + 's 后重发';
+      if (n <= 0) { clearInterval(t); btn.textContent = '获取验证码'; btn.classList.remove('disabled'); }
+    }, 1000);
+    C.toast('演示环境验证码：8888', 'ok', 2500);
+  }
+  $('#btnSend').onclick = function () { sendCode(this); };
+  $('#btnSend2').onclick = function () { sendCode(this); };
+
+  $('#btnLogin').onclick = function () {
+    var phone = $('#lgPhone').value.trim();
+    if (!/^1\d{10}$/.test(phone)) { C.toast('请输入正确的手机号', 'err'); return; }
+    var list = C.DB.visitors();
+    var u = list.filter(function (x) { return x.phone === phone; })[0];
+    if (way === 'pwd') {
+      var pwd = $('#lgPwd').value;
+      if (!u) { C.toast('该手机号未注册，请先注册', 'err'); return; }
+      if (pwd !== u.pwd) { C.toast('密码错误，演示密码 123456', 'err'); return; }
+    } else {
+      if ($('#lgCode').value !== '8888') { C.toast('验证码错误，演示验证码 8888', 'err'); return; }
+      if (!u) {
+        u = { id: C.uid('v'), username: phone, pwd: '123456', name: '游客' + phone.slice(-4), phone: phone, idcard: '', real: 0 };
+        C.DB.update(function (db) { db.visitors.push(u); });
+      }
+    }
+    C.Auth.visitor.set({ id: u.id, name: u.name, phone: u.phone, idcard: u.idcard, real: u.real });
+    C.toast('登录成功', 'ok');
+    setTimeout(back, 600);
+  };
+
+  $('#btnReg').onclick = function () {
+    var name = $('#rgName').value.trim();
+    var phone = $('#rgPhone').value.trim();
+    var pwd = $('#rgPwd').value;
+    var pwd2 = $('#rgPwd2').value;
+    var idc = $('#rgId').value.trim().toUpperCase();
+    if (name.length < 2) { C.toast('请输入真实姓名', 'err'); return; }
+    if (!/^1\d{10}$/.test(phone)) { C.toast('请输入正确的手机号', 'err'); return; }
+    if ($('#rgCode').value !== '8888') { C.toast('验证码错误，演示验证码 8888', 'err'); return; }
+    if (pwd.length < 6) { C.toast('密码至少 6 位', 'err'); return; }
+    if (pwd !== pwd2) { C.toast('两次输入的密码不一致', 'err'); return; }
+    if (idc && !/^\d{17}[\dX]$/.test(idc)) { C.toast('身份证号格式有误', 'err'); return; }
+    if (C.DB.visitors().some(function (x) { return x.phone === phone; })) { C.toast('该手机号已注册', 'err'); return; }
+    var u = { id: C.uid('v'), username: phone, pwd: pwd, name: name, phone: phone, idcard: idc, real: idc ? 1 : 0 };
+    C.DB.update(function (db) { db.visitors.push(u); });
+    C.Auth.visitor.set({ id: u.id, name: u.name, phone: u.phone, idcard: u.idcard, real: u.real });
+    C.toast('注册成功，已自动登录', 'ok');
+    setTimeout(back, 600);
+  };
+})();
+</script>
+</body>
+</html>

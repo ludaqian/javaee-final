@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>票种管理 · 云栖山景区管理后台</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/admin.css">
+</head>
+<body>
+<div class="admin-shell" data-nav="tickets">
+  <main class="admin-main" data-crumb="票务管理 / 票种管理">
+    <div class="admin-body">
+
+      <div class="panel">
+        <div class="p-hd">
+          <h3>票种列表</h3>
+          <div class="filters">
+            <input class="input" id="kw" placeholder="搜索票种名称" style="width:180px">
+            <button class="btn ghost sm" id="btnSearch">搜索</button>
+            <button class="btn primary sm" id="btnAdd">+ 新增票种</button>
+          </div>
+        </div>
+        <div class="p-bd flush">
+          <div style="overflow-x:auto">
+            <table class="table" id="tb"></table>
+          </div>
+          <div class="pager" style="padding:12px 16px">
+            <span class="s12 muted" id="count"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel mt16">
+        <div class="p-hd"><h3>购买须知配置</h3><button class="btn outline sm" id="btnSaveNeed">保存</button></div>
+        <div class="p-bd">
+          <textarea class="textarea" id="needText" style="min-height:110px"></textarea>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  var CATS = ['全价票', '优惠票', '套票', '年卡'];
+  var kw = '';
+
+  function render() {
+    var list = C.DB.tickets().filter(function (t) { return !kw || t.name.indexOf(kw) >= 0; });
+    $('#tb').innerHTML =
+      '<tr><th>票种名称</th><th>类别</th><th>价格</th><th>库存</th><th>限购</th><th>可预约时段</th><th>入园凭证</th><th>状态</th><th style="width:150px">操作</th></tr>' +
+      list.map(function (t) {
+        return '<tr>' +
+          '<td><b>' + C.esc(t.name) + '</b>' + (t.hot ? ' <span class="tag orange">推荐</span>' : '') + '</td>' +
+          '<td><span class="tag blue">' + C.esc(t.cat) + '</span></td>' +
+          '<td class="b" style="color:#e03131">¥' + t.price + '</td>' +
+          '<td>' + t.stock + '</td>' +
+          '<td>' + t.limit + ' 张 / 单</td>' +
+          '<td class="s12">' + C.esc(Array.isArray(t.times) ? t.times.join('、') : t.times) + '</td>' +
+          '<td class="s12">' + C.esc(t.need) + '</td>' +
+          '<td>' + (t.status ? '<span class="tag green">在售</span>' : '<span class="tag gray">已下架</span>') + '</td>' +
+          '<td>' +
+          '<button class="s12 primary" data-edit="' + t.id + '">编辑</button> ' +
+          '<button class="s12" data-sw="' + t.id + '">' + (t.status ? '下架' : '上架') + '</button> ' +
+          '<button class="s12 danger" data-del="' + t.id + '">删除</button>' +
+          '</td></tr>';
+      }).join('');
+    $('#count').textContent = '共 ' + list.length + ' 个票种';
+  }
+
+  function openForm(id) {
+    var t = id ? C.DB.ticket(id) : { name: '', cat: '全价票', price: 0, stock: 1000, limit: 5, times: ['08:00-10:00', '10:00-12:00', '12:00-14:00', '14:00-16:00', '16:00-18:00'], need: '身份证原件', status: 1, hot: 0, tag: '' };
+    C.formDialog({
+      title: id ? '编辑票种' : '新增票种',
+      fields: [
+        { k: 'name', label: '票种名称', value: t.name, required: 1 },
+        { k: 'cat', label: '票种类别', type: 'select', value: t.cat, options: CATS.map(function (c) { return { v: c, t: c }; }) },
+        { k: 'price', label: '销售价格（元）', type: 'number', value: t.price, required: 1 },
+        { k: 'stock', label: '可售库存', type: 'number', value: t.stock },
+        { k: 'limit', label: '每单限购数量', type: 'number', value: t.limit },
+        { k: 'times', label: '可预约时段（英文逗号分隔）', value: Array.isArray(t.times) ? t.times.join(',') : t.times, ph: '08:00-10:00,10:00-12:00' },
+        { k: 'need', label: '入园凭证要求', value: t.need },
+        { k: 'tag', label: '角标文字（如 热销 / 推荐）', value: t.tag || '' },
+        { k: 'hot', label: '设为热门推荐', type: 'switch', value: t.hot },
+        { k: 'status', label: '上架销售', type: 'switch', value: t.status }
+      ],
+      onOk: function (d) {
+        if (!d.name.trim()) { C.toast('请填写票种名称', 'err'); return false; }
+        var times = d.times.split(/[,，]/).map(function (x) { return x.trim(); }).filter(Boolean);
+        if (!times.length) { C.toast('请至少配置一个可预约时段', 'err'); return false; }
+        C.DB.update(function (db) {
+          if (id) {
+            var o = db.tickets.filter(function (x) { return x.id === id; })[0];
+            Object.assign(o, {
+              name: d.name.trim(), cat: d.cat, price: +d.price || 0, stock: +d.stock || 0,
+              limit: +d.limit || 1, times: times, need: d.need, tag: d.tag, hot: +d.hot, status: +d.status
+            });
+          } else {
+            db.tickets.push({
+              id: 't' + (db.counters.ticket++), name: d.name.trim(), cat: d.cat,
+              price: +d.price || 0, stock: +d.stock || 0, limit: +d.limit || 1,
+              times: times, need: d.need, tag: d.tag, hot: +d.hot, status: +d.status
+            });
+          }
+        });
+        C.toast(id ? '票种已更新' : '票种已新增', 'ok');
+        render();
+      }
+    });
+  }
+
+  $('#btnAdd').onclick = function () { openForm(null); };
+  $('#btnSearch').onclick = function () { kw = $('#kw').value.trim(); render(); };
+  $('#kw').onkeydown = function (e) { if (e.key === 'Enter') { kw = $('#kw').value.trim(); render(); } };
+
+  $('#tb').addEventListener('click', function (e) {
+    var b;
+    if ((b = e.target.closest('[data-edit]'))) { openForm(b.getAttribute('data-edit')); }
+    if ((b = e.target.closest('[data-sw]'))) {
+      var id1 = b.getAttribute('data-sw');
+      C.DB.update(function (db) {
+        var o = db.tickets.filter(function (x) { return x.id === id1; })[0];
+        if (o) o.status = o.status ? 0 : 1;
+      });
+      C.toast('状态已更新', 'ok'); render();
+    }
+    if ((b = e.target.closest('[data-del]'))) {
+      var id2 = b.getAttribute('data-del');
+      C.confirmBox('删除后使用该票种的历史订单仍会保留，确认删除？', function () {
+        C.DB.update(function (db) { db.tickets = db.tickets.filter(function (x) { return x.id !== id2; }); });
+        C.toast('票种已删除', 'ok'); render();
+      }, { danger: true, okText: '删除' });
+    }
+  });
+
+  $('#needText').value = C.DB.settings().refundRule + '\n每单最多 5 张，需实名预约；1.2m 以下儿童免票须成人陪同。';
+  $('#btnSaveNeed').onclick = function () { C.toast('购买须知已保存', 'ok'); };
+
+  render();
+})();
+</script>
+</body>
+</html>

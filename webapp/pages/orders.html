@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>我的订单 · 云栖山景区</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/portal.css">
+</head>
+<body>
+<main class="app" data-title="我的订单" data-back="0" data-bar="portal" data-tab="order">
+
+  <div class="padx">
+    <div class="tabs" id="tabs">
+      <div class="tab on" data-s="all">全部</div>
+      <div class="tab" data-s="pending">待支付</div>
+      <div class="tab" data-s="booked">已预约</div>
+      <div class="tab" data-s="verified">已核销</div>
+      <div class="tab" data-s="cancelled">已取消</div>
+    </div>
+  </div>
+
+  <div class="pad" id="list"></div>
+  <div style="height:10px"></div>
+</main>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  var tab = C.qs('tab');
+  var cur = ['all', 'pending', 'booked', 'verified', 'cancelled'].indexOf(tab) >= 0 ? tab : 'all';
+  if (cur !== 'all') {
+    C.$$('.tab', $('#tabs')).forEach(function (x) { x.classList.remove('on'); });
+    var t = $('.tab[data-s="' + cur + '"]', $('#tabs'));
+    if (t) t.classList.add('on');
+  }
+
+  function render() {
+    var list = C.Orders.list({ status: cur });
+    if (!list.length) { $('#list').innerHTML = C.emptyHtml('暂无相关订单', '🎫'); return; }
+    $('#list').innerHTML = list.map(function (o) {
+      var st = C.statusOf(o.status);
+      var btns = '';
+      if (o.status === 'pending') {
+        btns = '<a class="btn outline sm" href="payment.html?no=' + o.no + '">去支付</a>' +
+          '<button class="btn ghost sm" data-cancel="' + o.no + '">取消</button>';
+      } else if (o.status === 'booked') {
+        btns = '<button class="btn outline sm" data-refund="' + o.no + '">申请退票</button>';
+      } else if (o.status === 'verified') {
+        btns = '<span class="s12 muted">已核销 ' + C.fmtTime(o.verifiedAt) + '</span>';
+      } else {
+        btns = '<button class="btn ghost sm" data-del="' + o.no + '">删除记录</button>';
+      }
+      btns = '<a class="btn primary sm" href="order-detail.html?no=' + o.no + '">详情</a>' + btns;
+
+      return '<div class="order">' +
+        '<div class="o-hd"><span class="no">订单号 ' + o.no + '</span>' +
+        '<span class="tag ' + st.cls + '">' + st.text + '</span></div>' +
+        '<div class="o-bd">' +
+        '<div class="thumb">' + C.thumb(o.ticket.charCodeAt(1) % 6) + '</div>' +
+        '<div class="f1">' +
+        '<div class="b s14 ell">' + C.esc(o.ticket) + '</div>' +
+        '<div class="s12 muted mt6">游玩：' + o.date + ' ' + C.dateLabel(o.date) + ' ' + o.time + '</div>' +
+        '<div class="s12 muted">人数：' + o.qty + ' 人 · 联系人 ' + C.esc(o.contact.name) + '</div>' +
+        '</div>' +
+        '<div class="tr"><div style="color:#e03131;font-weight:700">' + C.money(o.amount) + '</div>' +
+        '<div class="s12 muted mt6">' + o.qty + ' 张</div></div>' +
+        '</div>' +
+        '<div class="o-ft">' + btns + '</div></div>';
+    }).join('');
+  }
+
+  $('#tabs').onclick = function (e) {
+    var t = e.target.closest('.tab');
+    if (!t) return;
+    C.$$('.tab', $('#tabs')).forEach(function (x) { x.classList.remove('on'); });
+    t.classList.add('on');
+    cur = t.getAttribute('data-s');
+    render();
+  };
+
+  $('#list').addEventListener('click', function (e) {
+    var el;
+    if ((el = e.target.closest('[data-cancel]'))) {
+      var no1 = el.getAttribute('data-cancel');
+      C.confirmBox('确定取消该订单？名额将立即释放。', function () {
+        C.Orders.cancel(no1); C.toast('订单已取消', 'ok'); render();
+      }, { danger: true, okText: '取消订单' });
+    }
+    if ((el = e.target.closest('[data-refund]'))) {
+      var no2 = el.getAttribute('data-refund');
+      var o = C.Orders.byNo(no2);
+      C.confirmBox('退票金额 ' + C.money(o.amount) + '，按规则将收取 10% 手续费，确认退票？', function () {
+        C.Orders.cancel(no2); C.toast('退票申请已提交，1-3 个工作日到账', 'ok'); render();
+      }, { danger: true, okText: '确认退票' });
+    }
+    if ((el = e.target.closest('[data-del]'))) {
+      var no3 = el.getAttribute('data-del');
+      C.confirmBox('删除后不可恢复，确认删除该订单记录？', function () {
+        C.DB.update(function (db) { db.orders = db.orders.filter(function (x) { return x.no !== no3; }); });
+        C.toast('记录已删除', 'ok'); render();
+      }, { danger: true, okText: '删除' });
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

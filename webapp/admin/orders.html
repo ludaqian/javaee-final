@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>订单管理 · 云栖山景区管理后台</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/admin.css">
+</head>
+<body>
+<div class="admin-shell" data-nav="orders">
+  <main class="admin-main" data-crumb="运营管理 / 订单管理">
+    <div class="admin-body">
+
+      <div class="panel">
+        <div class="p-hd">
+          <h3>订单列表</h3>
+          <div class="filters">
+            <button class="btn outline sm" id="btnExport">导出 CSV</button>
+          </div>
+        </div>
+        <div class="p-bd">
+          <div class="filters mb12">
+            <select class="select" id="fStatus">
+              <option value="all">全部状态</option>
+              <option value="pending">待支付</option>
+              <option value="booked">已预约</option>
+              <option value="verified">已核销</option>
+              <option value="cancelled">已取消</option>
+            </select>
+            <select class="select" id="fTicket"><option value="">全部票种</option></select>
+            <input class="input" type="date" id="fDate">
+            <input class="input" id="fKw" placeholder="订单号 / 游客姓名 / 手机号" style="width:220px">
+            <button class="btn primary sm" id="btnSearch">查询</button>
+            <button class="btn ghost sm" id="btnReset">重置</button>
+          </div>
+          <div style="overflow-x:auto"><table class="table" id="tb"></table></div>
+          <div class="pager"><span class="s12 muted" id="count"></span></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+
+  $('#fTicket').innerHTML = '<option value="">全部票种</option>' + C.DB.tickets().map(function (t) {
+    return '<option value="' + C.esc(t.name) + '">' + C.esc(t.name) + '</option>';
+  }).join('');
+
+  function collect() {
+    return C.Orders.list({
+      status: $('#fStatus').value,
+      date: $('#fDate').value,
+      ticket: $('#fTicket').value,
+      kw: $('#fKw').value.trim()
+    });
+  }
+
+  function render() {
+    var list = collect();
+    $('#tb').innerHTML =
+      '<tr><th>订单号</th><th>票种</th><th>游玩日期</th><th>时段</th><th>游客</th><th>数量</th><th>金额</th><th>联系人</th><th>下单时间</th><th>状态</th><th style="width:150px">操作</th></tr>' +
+      (list.length ? list.map(function (o) {
+        var st = C.statusOf(o.status);
+        return '<tr>' +
+          '<td class="s12">' + o.no + '</td>' +
+          '<td>' + C.esc(o.ticket) + '</td>' +
+          '<td class="s12">' + o.date + '</td>' +
+          '<td class="s12">' + o.time + '</td>' +
+          '<td>' + o.visitors.map(function (v) { return C.esc(v.name); }).join('、') + '</td>' +
+          '<td>' + o.qty + '</td>' +
+          '<td class="b">' + C.money(o.amount) + '</td>' +
+          '<td class="s12">' + C.esc(o.contact.name) + '<br><span class="muted">' + C.esc(o.contact.phone) + '</span></td>' +
+          '<td class="s12">' + C.fmtDateTime(o.createdAt) + '</td>' +
+          '<td><span class="tag ' + st.cls + '">' + st.text + '</span>' + (o.verifier ? '<div class="s12 muted">' + C.esc(o.verifier) + '</div>' : '') + '</td>' +
+          '<td><button class="s12 primary" data-view="' + o.no + '">详情</button> ' +
+          (o.status === 'booked' || o.status === 'pending' ? '<button class="s12 danger" data-refund="' + o.no + '">退票</button> ' : '') +
+          '<button class="s12 muted" data-del="' + o.no + '">删除</button></td>' +
+          '</tr>';
+      }).join('') : '<tr><td colspan="11">' + C.emptyHtml('没有符合条件的订单', '🔍') + '</td></tr>');
+    $('#count').textContent = '共 ' + list.length + ' 条订单 · 合计金额 ' +
+      C.money(list.filter(function (o) { return o.status !== 'cancelled'; }).reduce(function (a, o) { return a + o.amount; }, 0));
+  }
+
+  $('#btnSearch').onclick = render;
+  $('#btnReset').onclick = function () {
+    $('#fStatus').value = 'all'; $('#fTicket').value = ''; $('#fDate').value = ''; $('#fKw').value = '';
+    render();
+  };
+  $('#fKw').onkeydown = function (e) { if (e.key === 'Enter') render(); };
+
+  /* 支持从仪表盘跳转带入条件 */
+  if (C.qs('status')) { $('#fStatus').value = C.qs('status'); }
+  if (C.qs('kw')) { $('#fKw').value = C.qs('kw'); }
+
+  $('#btnExport').onclick = function () {
+    var list = collect();
+    if (!list.length) { C.toast('当前没有可导出的订单', 'err'); return; }
+    C.exportCSV('订单数据_' + C.dstr(C.today(), 0) + '.csv',
+      ['订单号', '票种', '游玩日期', '时段', '游客姓名', '身份证号', '数量', '金额', '联系人', '手机号', '状态', '下单时间', '核销时间', '核销员'],
+      list.map(function (o) {
+        return [o.no, o.ticket, o.date, o.time,
+          o.visitors.map(function (v) { return v.name; }).join('/'),
+          o.visitors.map(function (v) { return v.idcard; }).join('/'),
+          o.qty, o.amount, o.contact.name, o.contact.phone,
+          C.statusOf(o.status).text, C.fmtDateTime(o.createdAt),
+          o.verifiedAt ? C.fmtDateTime(o.verifiedAt) : '', o.verifier || ''];
+      }));
+    C.toast('已导出 ' + list.length + ' 条订单', 'ok');
+  };
+
+  $('#tb').addEventListener('click', function (e) {
+    var b;
+    if ((b = e.target.closest('[data-view]'))) {
+      var o = C.Orders.byNo(b.getAttribute('data-view'));
+      C.dialog({
+        title: '订单详情 ' + o.no, okText: '关闭', cancelText: null,
+        html: '<div style="text-align:left">' +
+          '<div class="info-row"><span class="k">票种 / 数量</span><span>' + C.esc(o.ticket) + ' × ' + o.qty + '</span></div>' +
+          '<div class="info-row"><span class="k">游玩日期</span><span>' + o.date + ' ' + o.time + '</span></div>' +
+          o.visitors.map(function (v) {
+            return '<div class="info-row"><span class="k">' + C.esc(v.name) + '</span><span>' + v.idcard + '</span></div>';
+          }).join('') +
+          '<div class="info-row"><span class="k">联系人</span><span>' + C.esc(o.contact.name) + ' ' + C.esc(o.contact.phone) + '</span></div>' +
+          '<div class="info-row"><span class="k">金额</span><span class="b">' + C.money(o.amount) + '</span></div>' +
+          '<div class="info-row"><span class="k">状态</span><span class="tag ' + C.statusOf(o.status).cls + '">' + C.statusOf(o.status).text + '</span></div>' +
+          (o.verifier ? '<div class="info-row"><span class="k">核销信息</span><span>' + C.esc(o.verifier) + ' ' + C.esc(o.gate) + ' ' + C.fmtDateTime(o.verifiedAt) + '</span></div>' : '') +
+          '</div>'
+      });
+      $('.dialog').style.maxWidth = '420px';
+    }
+    if ((b = e.target.closest('[data-refund]'))) {
+      var no = b.getAttribute('data-refund');
+      var ord = C.Orders.byNo(no);
+      C.confirmBox('确认为订单 ' + no + ' 办理退票？退款 ' + C.money(ord.amount) + '，名额将释放。', function () {
+        C.Orders.cancel(no); C.toast('退票成功', 'ok'); render();
+      }, { danger: true, okText: '确认退票' });
+    }
+    if ((b = e.target.closest('[data-del]'))) {
+      var no2 = b.getAttribute('data-del');
+      C.confirmBox('确认删除该订单记录？删除后不可恢复。', function () {
+        C.DB.update(function (db) { db.orders = db.orders.filter(function (x) { return x.no !== no2; }); });
+        C.toast('订单已删除', 'ok'); render();
+      }, { danger: true, okText: '删除' });
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

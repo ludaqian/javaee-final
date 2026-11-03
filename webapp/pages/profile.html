@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>个人中心 · 云栖山景区</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/portal.css">
+</head>
+<body>
+<main class="app" data-title="个人中心" data-back="0" data-head="0" data-bar="portal" data-tab="mine">
+
+  <div class="home-head" style="padding-bottom:44px">
+    <div class="flex ac" style="gap:12px">
+      <div id="avatar" style="width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.25);display:grid;place-items:center;overflow:hidden"></div>
+      <div class="f1">
+        <div class="b s18" id="pName">未登录</div>
+        <div class="s12" style="opacity:.9" id="pSub">登录后可查看订单与实名信息</div>
+      </div>
+      <a class="btn" style="background:rgba(255,255,255,.22);color:#fff" id="pBtn">登录 / 注册</a>
+    </div>
+  </div>
+
+  <div class="pad" style="margin-top:-30px">
+    <div class="rec-strip" style="border-radius:16px">
+      <div><div class="n primary" id="c1">0</div><div class="c">待支付</div></div>
+      <div><div class="n" id="c2">0</div><div class="c">已预约</div></div>
+      <div><div class="n" id="c3">0</div><div class="c">已核销</div></div>
+      <div><div class="n" id="c4">0</div><div class="c">优惠券</div></div>
+    </div>
+  </div>
+
+  <div class="padt"><div class="sec-title"><h2>我的服务</h2></div></div>
+  <div class="padx">
+    <div class="list">
+      <a class="cell" href="orders.html?tab=pending"><span style="width:22px;height:22px;color:var(--primary)" id="i1"></span><div class="f1">我的订单</div><span class="s12 muted">全部预约记录</span><span class="arrow" id="a1"></span></a>
+      <a class="cell" href="map.html"><span style="width:22px;height:22px;color:var(--primary)" id="i2"></span><div class="f1">电子导览地图</div><span class="arrow" id="a2"></span></a>
+      <a class="cell" href="notices.html"><span style="width:22px;height:22px;color:var(--primary)" id="i3"></span><div class="f1">景区公告</div><span class="arrow" id="a3"></span></a>
+      <a class="cell" href="help.html"><span style="width:22px;height:22px;color:var(--primary)" id="i4"></span><div class="f1">帮助与须知</div><span class="arrow" id="a4"></span></a>
+    </div>
+  </div>
+
+  <div class="padt"><div class="sec-title"><h2>账号管理</h2></div></div>
+  <div class="padx">
+    <div class="list">
+      <div class="cell" id="mReal"><span style="width:22px;height:22px;color:var(--primary)" id="i5"></span><div class="f1">实名信息管理</div><span class="s12 muted" id="realTip">未添加</span><span class="arrow" id="a5"></span></div>
+      <div class="cell" id="mPhone"><span style="width:22px;height:22px;color:var(--primary)" id="i6"></span><div class="f1">手机号</div><span class="s12 muted" id="phoneTip">--</span><span class="arrow" id="a6"></span></div>
+      <div class="cell" id="mPwd"><span style="width:22px;height:22px;color:var(--primary)" id="i7"></span><div class="f1">修改密码</div><span class="arrow" id="a7"></span></div>
+      <div class="cell" id="mLogout"><span style="width:22px;height:22px;color:var(--danger)" id="i8"></span><div class="f1 danger">退出登录</div><span class="arrow" id="a8"></span></div>
+    </div>
+  </div>
+
+  <div class="pad">
+    <div class="card tc" style="background:#f6fbf9">
+      <div class="s12 muted">客服热线 0571-8888 6688</div>
+      <div class="s12 muted mt6">面向对象课程设计 · 景区预约系统演示版</div>
+    </div>
+  </div>
+  <div style="height:10px"></div>
+</main>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  [['i1', 'order'], ['i2', 'map'], ['i3', 'notice'], ['i4', 'info'], ['i5', 'user'], ['i6', 'phone'], ['i7', 'lock'], ['i8', 'logout']]
+    .forEach(function (p) { $('#' + p[0]).innerHTML = C.icon(p[1]); });
+  ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8'].forEach(function (a) { $('#' + a).innerHTML = C.icon('right'); });
+
+  var me = C.Auth.visitor.get();
+  var all = C.Orders.all();
+
+  function render() {
+    me = C.Auth.visitor.get();
+    if (me) {
+      $('#avatar').innerHTML = '<div style="width:56px;height:56px;display:grid;place-items:center;font-size:22px;font-weight:600">' + C.esc(me.name[0]) + '</div>';
+      $('#pName').textContent = me.name;
+      $('#pSub').textContent = me.phone + (me.real ? ' · 已实名' : ' · 未实名');
+      $('#pBtn').style.display = 'none';
+      $('#phoneTip').textContent = me.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2');
+    } else {
+      $('#avatar').innerHTML = '<div style="width:26px;height:26px">' + C.icon('user', '', 1.6) + '</div>';
+      $('#pBtn').style.display = '';
+    }
+    $('#c1').textContent = C.Orders.list({ status: 'pending' }).length;
+    $('#c2').textContent = C.Orders.list({ status: 'booked' }).length;
+    $('#c3').textContent = C.Orders.list({ status: 'verified' }).length;
+    $('#c4').textContent = 2;
+
+    var rec = me ? C.DB.get().visitors.filter(function (v) { return v.id === me.id; })[0] : null;
+    var contacts = (rec && rec.contacts) || [];
+    $('#realTip').textContent = contacts.length ? contacts.length + ' 位常用游客' : (me && me.idcard ? '本人已实名' : '未添加');
+  }
+
+  $('#pBtn').onclick = function () { location.href = 'login.html'; };
+
+  function needLogin() {
+    if (!me) { C.toast('请先登录', 'err'); setTimeout(function () { location.href = 'login.html?from=profile.html'; }, 600); return false; }
+    return true;
+  }
+
+  /* 实名信息管理 */
+  $('#mReal').onclick = function () {
+    if (!needLogin()) return;
+    var rec = C.DB.get().visitors.filter(function (v) { return v.id === me.id; })[0];
+    var contacts = (rec && rec.contacts) || [];
+    var html = contacts.length ? contacts.map(function (c, i) {
+      return '<div class="info-row"><span class="k">' + C.esc(c.name) + '</span>' +
+        '<span>' + C.maskId(c.idcard) + ' <button class="s12 danger" data-rm="' + i + '">删除</button></span></div>';
+    }).join('') : '<div class="s12 muted tc" style="padding:10px 0">暂无常用游客信息</div>';
+    var addFn = function () {
+        C.formDialog({
+          title: '添加常用游客',
+          fields: [
+            { k: 'name', label: '姓名', ph: '请输入证件姓名', required: 1 },
+            { k: 'idcard', label: '身份证号', ph: '18 位身份证号', required: 1 }
+          ],
+          onOk: function (d) {
+            if (!/^\d{17}[\dXx]$/.test(d.idcard.trim().toUpperCase())) { C.toast('身份证号格式有误', 'err'); return false; }
+            C.DB.update(function (db) {
+              var r = db.visitors.filter(function (v) { return v.id === me.id; })[0];
+              if (!r) { r = { id: me.id, username: me.phone, pwd: '123456', name: me.name, phone: me.phone, idcard: me.idcard || '', real: 1, contacts: [] }; db.visitors.push(r); }
+              if (!r.contacts) r.contacts = [];
+              r.contacts.push({ name: d.name.trim(), idcard: d.idcard.trim().toUpperCase() });
+            });
+            C.toast('添加成功', 'ok'); render();
+          }
+        });
+    };
+    var dlg = C.dialog({
+      title: '实名信息管理',
+      html: '<div style="text-align:left">' + html + '</div>',
+      okText: '添加游客', cancelText: '关闭', onOk: addFn
+    });
+    dlg.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-rm]');
+      if (!b) return;
+      var idx = +b.getAttribute('data-rm');
+      C.DB.update(function (db) {
+        var r = db.visitors.filter(function (v) { return v.id === me.id; })[0];
+        if (r) r.contacts.splice(idx, 1);
+      });
+      C.closeDialog(); C.toast('已删除', 'ok'); render();
+    });
+  };
+
+  /* 手机号 */
+  $('#mPhone').onclick = function () {
+    if (!needLogin()) return;
+    C.formDialog({
+      title: '修改手机号',
+      fields: [{ k: 'phone', label: '新手机号', value: me.phone }, { k: 'code', label: '短信验证码', ph: '演示验证码 8888' }],
+      onOk: function (d) {
+        if (!/^1\d{10}$/.test(d.phone)) { C.toast('手机号格式有误', 'err'); return false; }
+        if (d.code !== '8888') { C.toast('验证码错误，演示验证码 8888', 'err'); return false; }
+        C.DB.update(function (db) {
+          var r = db.visitors.filter(function (v) { return v.id === me.id; })[0];
+          if (r) r.phone = d.phone;
+        });
+        me.phone = d.phone; C.Auth.visitor.set(me);
+        C.toast('手机号已更新', 'ok'); render();
+      }
+    });
+  };
+
+  /* 修改密码 */
+  $('#mPwd').onclick = function () {
+    if (!needLogin()) return;
+    C.formDialog({
+      title: '修改密码',
+      fields: [
+        { k: 'old', label: '原密码', type: 'password' },
+        { k: 'pwd', label: '新密码', type: 'password', ph: '6-16 位' },
+        { k: 'pwd2', label: '确认新密码', type: 'password' }
+      ],
+      onOk: function (d) {
+        var rec = C.DB.get().visitors.filter(function (v) { return v.id === me.id; })[0];
+        if (rec && d.old !== rec.pwd) { C.toast('原密码不正确（演示密码 123456）', 'err'); return false; }
+        if (d.pwd.length < 6) { C.toast('新密码至少 6 位', 'err'); return false; }
+        if (d.pwd !== d.pwd2) { C.toast('两次输入不一致', 'err'); return false; }
+        C.DB.update(function (db) {
+          var r = db.visitors.filter(function (v) { return v.id === me.id; })[0];
+          if (r) r.pwd = d.pwd;
+        });
+        C.toast('密码修改成功', 'ok');
+      }
+    });
+  };
+
+  $('#mLogout').onclick = function () {
+    if (!me) { C.toast('当前未登录', 'err'); return; }
+    C.confirmBox('确定退出当前账号？', function () {
+      C.Auth.visitor.clear(); C.toast('已退出登录', 'ok'); setTimeout(function () { location.reload(); }, 600);
+    }, { danger: true, okText: '退出' });
+  };
+
+  render();
+})();
+</script>
+</body>
+</html>

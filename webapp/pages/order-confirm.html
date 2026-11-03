@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>订单确认 · 云栖山景区</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/portal.css">
+</head>
+<body>
+<main class="app" data-title="订单确认" data-back="1" data-bar="none">
+
+  <div class="pad">
+    <div class="card" style="padding:12px 14px">
+      <div class="steps">
+        <div class="st on"><span class="n">✓</span>选择票种</div>
+        <div class="line"></div>
+        <div class="st on"><span class="n">2</span>确认订单</div>
+        <div class="line"></div>
+        <div class="st"><span class="n">3</span>支付</div>
+      </div>
+    </div>
+
+    <div class="card mt12" id="mainCard"></div>
+
+    <div class="card mt12">
+      <div class="card-hd"><h3>游客信息</h3><span class="more" id="vcount"></span></div>
+      <div id="visitorBox"></div>
+    </div>
+
+    <div class="card mt12">
+      <div class="card-hd"><h3>金额明细</h3></div>
+      <div class="info-row"><span class="k">票面单价</span><span id="p1"></span></div>
+      <div class="info-row"><span class="k">购买数量</span><span id="p2"></span></div>
+      <div class="info-row"><span class="k">优惠减免</span><span class="primary" id="p3"></span></div>
+      <div class="info-row"><span class="k">平台服务费</span><span id="p4"></span></div>
+      <div class="info-row" style="border:0"><span class="k b">应付总额</span><span class="b" style="color:#e03131" id="p5"></span></div>
+    </div>
+
+    <div class="card mt12" style="background:#f6fbf9">
+      <div class="s13 b mb8">预约须知</div>
+      <div class="s12 muted" style="line-height:1.9" id="ruleBox"></div>
+    </div>
+  </div>
+
+  <div style="height:78px"></div>
+</main>
+
+<div class="footbar">
+  <div class="f1">
+    <div class="s12 muted">应付金额</div>
+    <div style="color:#e03131;font-weight:700" id="footAmt">¥0.00</div>
+  </div>
+  <button class="btn primary" style="padding:0 30px" id="btnSubmit">提交订单</button>
+</div>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  var draft = null;
+  try { draft = JSON.parse(localStorage.getItem('sab_draft') || 'null'); } catch (e) { }
+  if (!draft) { location.replace('booking.html'); return; }
+
+  var st = C.DB.settings();
+  var amount = draft.price * draft.qty;
+
+  $('#mainCard').innerHTML =
+    '<div class="flex ac jb"><b class="s15">' + C.esc(draft.ticket) + '</b>' +
+    '<span class="tag green">待支付</span></div>' +
+    '<div class="info-row"><span class="k">游玩日期</span><span class="b">' + draft.date + ' ' + C.dateLabel(draft.date) + '</span></div>' +
+    '<div class="info-row"><span class="k">入园时段</span><span class="b">' + draft.time + '</span></div>' +
+    '<div class="info-row"><span class="k">入园凭证</span><span>凭订单二维码或身份证核验</span></div>' +
+    '<div class="info-row" style="border:0"><span class="k">联系人</span><span>' + C.esc(draft.contact.name) + ' ' + C.esc(draft.contact.phone) + '</span></div>';
+
+  $('#vcount').textContent = draft.visitors.length + ' 人';
+  $('#visitorBox').innerHTML = draft.visitors.map(function (v, i) {
+    return '<div class="info-row"><span class="k">游客 ' + (i + 1) + ' · ' + C.esc(v.name) + '</span>' +
+      '<span>' + C.maskId(v.idcard) + '</span></div>';
+  }).join('');
+
+  $('#p1').textContent = C.money(draft.price);
+  $('#p2').textContent = draft.qty + ' 张';
+  $('#p3').textContent = '-¥0.00';
+  $('#p4').textContent = '¥0.00';
+  $('#p5').textContent = C.money(amount);
+  $('#footAmt').textContent = C.money(amount);
+  $('#ruleBox').innerHTML = C.esc(st.refundRule) + '<br>请在下单后 15 分钟内完成支付，超时订单将自动取消。<br>入园请携带本人身份证，每单最多 ' + st.maxPerOrder + ' 张。';
+
+  $('#btnSubmit').onclick = function () {
+    var btn = $('#btnSubmit');
+    btn.classList.add('disabled'); btn.textContent = '提交中...';
+    setTimeout(function () {
+      var order = C.Orders.create(draft);
+      C.Inventory.use(order.date, order.qty);
+      localStorage.removeItem('sab_draft');
+      location.href = 'payment.html?no=' + order.no;
+    }, 500);
+  };
+})();
+</script>
+</body>
+</html>

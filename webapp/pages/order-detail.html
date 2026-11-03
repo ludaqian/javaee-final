@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>订单详情 · 云栖山景区</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/portal.css">
+</head>
+<body>
+<main class="app" data-title="订单详情" data-back="1" data-bar="none">
+
+  <div class="pad">
+    <div class="card" id="banner"></div>
+
+    <div class="card mt12 tc" id="qrCard">
+      <div class="s13 muted mb8" id="qrTip">请向检票员出示此二维码</div>
+      <div class="qr-box" style="max-width:180px;margin:0 auto"><canvas id="qr"></canvas></div>
+      <div class="b s15 mt8" id="qrNo" style="letter-spacing:1px"></div>
+      <div class="s12 muted mt6">也可凭本人身份证从闸机核验入园</div>
+    </div>
+
+    <div class="card mt12">
+      <div class="card-hd"><h3>预约信息</h3><span class="more" id="createdAt"></span></div>
+      <div id="infoBox"></div>
+    </div>
+
+    <div class="card mt12">
+      <div class="card-hd"><h3>游客信息</h3><span class="more">已实名核验</span></div>
+      <div id="visitorBox"></div>
+    </div>
+
+    <div class="card mt12" style="background:#f6fbf9">
+      <div class="s13 b mb8">预约须知</div>
+      <div class="s12 muted" style="line-height:1.9" id="ruleBox"></div>
+    </div>
+  </div>
+
+  <div style="height:20px"></div>
+</main>
+
+<div class="footbar" id="footbar"></div>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  var no = C.qs('no');
+  var o = C.Orders.byNo(no);
+  if (!o) { location.replace('orders.html'); return; }
+  var st = C.statusOf(o.status);
+
+  /* 顶部状态条 */
+  var tips = {
+    pending: '请在 15 分钟内完成支付，超时名额将释放',
+    booked: '预约成功，请在所选时段内抵达景区',
+    verified: '已完成核销，祝您游览愉快',
+    cancelled: '订单已取消，名额已释放'
+  };
+  $('#banner').innerHTML =
+    '<div class="flex ac jb" style="background:linear-gradient(135deg,#0f8a6a,#14a37f);margin:-14px -14px 12px;padding:14px;border-radius:16px 16px 0 0;color:#fff">' +
+    '<div><div class="b s16">' + st.text + '</div><div class="s12" style="opacity:.9">' + tips[o.status] + '</div></div>' +
+    '<div style="text-align:right"><div class="s12" style="opacity:.9">应付</div><div class="b s18">' + C.money(o.amount) + '</div></div></div>';
+
+  /* 二维码 */
+  if (o.status === 'verified' || o.status === 'cancelled') {
+    $('#qrCard').style.opacity = '.45';
+    $('#qrTip').textContent = o.status === 'verified' ? '该凭证已核销，无需再次出示' : '凭证已失效';
+  }
+  C.drawQR($('#qr'), o.no, 7);
+  $('#qrNo').textContent = o.no.replace(/(.{4})/g, '$1 ').trim();
+  $('#createdAt').textContent = '下单 ' + C.fmtTime(o.createdAt);
+
+  $('#infoBox').innerHTML =
+    '<div class="info-row"><span class="k">票种</span><span class="b">' + C.esc(o.ticket) + '</span></div>' +
+    '<div class="info-row"><span class="k">数量</span><span>' + o.qty + ' 张</span></div>' +
+    '<div class="info-row"><span class="k">游玩日期</span><span>' + o.date + ' ' + C.dateLabel(o.date) + '</span></div>' +
+    '<div class="info-row"><span class="k">入园时段</span><span>' + o.time + '</span></div>' +
+    '<div class="info-row"><span class="k">联系人</span><span>' + C.esc(o.contact.name) + ' ' + C.esc(o.contact.phone) + '</span></div>' +
+    (o.verifiedAt ? '<div class="info-row"><span class="k">核销时间</span><span>' + C.fmtDateTime(o.verifiedAt) + '</span></div>' : '') +
+    (o.verifier ? '<div class="info-row"><span class="k">核销员</span><span>' + C.esc(o.verifier) + '（' + C.esc(o.gate) + '）</span></div>' : '') +
+    '<div class="info-row" style="border:0"><span class="k">支付时间</span><span>' + (o.paidAt ? C.fmtDateTime(o.paidAt) : '未支付') + '</span></div>';
+
+  $('#visitorBox').innerHTML = o.visitors.map(function (v, i) {
+    return '<div class="info-row"><span class="k">' + (i + 1) + '. ' + C.esc(v.name) + '</span>' +
+      '<span>' + C.maskId(v.idcard) + '</span></div>';
+  }).join('');
+
+  var s = C.DB.settings();
+  $('#ruleBox').innerHTML = C.esc(s.refundRule) + '<br>每单最多 ' + s.maxPerOrder + ' 张，需实名预约。<br>入园时间：' + s.openTime;
+
+  /* 底部操作 */
+  var html = '';
+  if (o.status === 'pending') {
+    html = '<div class="f1"><div class="s12 muted">待支付</div><div style="color:#e03131;font-weight:700">' + C.money(o.amount) + '</div></div>' +
+      '<a class="btn primary" style="padding:0 30px" href="payment.html?no=' + o.no + '">去支付</a>';
+  } else if (o.status === 'booked') {
+    html = '<div class="f1"><div class="s12 muted">已预约 ' + o.qty + ' 张</div><div style="color:#e03131;font-weight:700">' + C.money(o.amount) + '</div></div>' +
+      '<button class="btn danger-fill" style="padding:0 26px" id="btnRefund">申请退票</button>';
+  } else {
+    html = '<div class="f1"><div class="s12 muted">订单状态</div><div class="b">' + st.text + '</div></div>' +
+      '<a class="btn outline" style="padding:0 26px" href="../index.html">返回首页</a>';
+  }
+  $('#footbar').innerHTML = html;
+  if (o.status !== 'pending' && o.status !== 'booked') {
+    $('#footbar').style.display = 'none';
+  }
+
+  var br = $('#btnRefund');
+  if (br) {
+    br.onclick = function () {
+      C.confirmBox('确认退票？将收取 10% 手续费，退款 ' + C.money(o.amount * 0.9), function () {
+        C.Orders.cancel(o.no);
+        C.toast('退票成功，退款将在 1-3 个工作日到账', 'ok');
+        setTimeout(function () { location.href = 'orders.html'; }, 900);
+      }, { danger: true, okText: '确认退票' });
+    };
+  }
+})();
+</script>
+</body>
+</html>

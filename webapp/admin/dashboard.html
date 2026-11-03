@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>仪表盘 · 云栖山景区管理后台</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/admin.css">
+</head>
+<body>
+<div class="admin-shell" data-nav="dashboard">
+  <main class="admin-main" data-crumb="数据概览 / 仪表盘">
+    <div class="admin-body">
+
+      <div class="stats" id="stats"></div>
+
+      <div class="grid-main mt16">
+        <div class="panel">
+          <div class="p-hd">
+            <h3>近 7 日客流与营收趋势</h3>
+            <div class="legend">
+              <span><i style="background:#14a37f"></i>预约人数</span>
+              <span><i style="background:#7bd6b8"></i>核销人数</span>
+              <span><i style="background:#f59f00"></i>营收（元）</span>
+            </div>
+          </div>
+          <div class="p-bd"><div id="chart"></div></div>
+        </div>
+
+        <div class="panel">
+          <div class="p-hd"><h3>今日时段分布</h3><span class="s12 muted" id="todayDate"></span></div>
+          <div class="p-bd" id="timeDist"></div>
+        </div>
+      </div>
+
+      <div class="grid3 mt16">
+        <div class="panel">
+          <div class="p-hd"><h3>待办提醒</h3></div>
+          <div class="p-bd" id="todo"></div>
+        </div>
+        <div class="panel">
+          <div class="p-hd"><h3>票种销售占比</h3></div>
+          <div class="p-bd" id="ticketRate"></div>
+        </div>
+        <div class="panel">
+          <div class="p-hd"><h3>库存预警</h3></div>
+          <div class="p-bd" id="warn"></div>
+        </div>
+      </div>
+
+      <div class="panel mt16">
+        <div class="p-hd"><h3>最新订单</h3><a class="s12 primary" href="orders.html">查看全部订单›</a></div>
+        <div class="p-bd flush"><div style="overflow-x:auto"><table class="table" id="lastOrders"></table></div></div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  var t = C.today();
+  var today = C.dstr(t, 0);
+  var orders = C.Orders.all();
+
+  function isToday(iso) { return iso && iso.slice(0, 10) === today; }
+  function sumQty(list) { return list.reduce(function (a, o) { return a + o.qty; }, 0); }
+
+  var todayOrders = orders.filter(function (o) { return o.date === today && o.status !== 'cancelled'; });
+  var todayVerify = orders.filter(function (o) { return o.status === 'verified' && o.verifiedAt && o.verifiedAt.slice(0, 10) === today; });
+  var todayPaid = orders.filter(function (o) { return o.paidAt && o.paidAt.slice(0, 10) === today; });
+  var pendings = C.Orders.list({ status: 'pending' });
+
+  /* 统计卡 */
+  var cards = [
+    { n: sumQty(todayOrders), c: '今日预约人数', ic: 'ticket', bg: '#e6f7f0', col: '#0f8a6a', tr: '+12.5%' },
+    { n: sumQty(todayVerify), c: '今日核销人数', ic: 'checkcircle', bg: '#e7f1ff', col: '#1c7ed6', tr: '+8.2%' },
+    { n: '¥' + todayPaid.reduce(function (a, o) { return a + o.amount; }, 0), c: '今日营收', ic: 'money', bg: '#fff4e0', col: '#f59f00', tr: '+15.3%' },
+    { n: pendings.length, c: '待支付订单', ic: 'clock', bg: '#ffeded', col: '#e03131', tr: '需跟进' }
+  ];
+  $('#stats').innerHTML = cards.map(function (c) {
+    return '<div class="stat"><div class="ic-box" style="background:' + c.bg + ';color:' + c.col + '">' + C.icon(c.ic) + '</div>' +
+      '<div class="f1"><div class="num">' + c.n + '</div><div class="cap">' + c.c + '</div></div>' +
+      '<div class="trend ' + (c.tr[0] === '+' ? 'primary' : c.tr[0] === '需' ? 'danger' : '') + '">' + c.tr + '</div></div>';
+  }).join('');
+
+  /* 趋势图 */
+  var rows = [];
+  for (var i = 6; i >= 0; i--) {
+    var d = C.dstr(t, -i);
+    var ds = orders.filter(function (o) { return o.date === d && o.status !== 'cancelled'; });
+    var vs = orders.filter(function (o) { return o.date === d && o.status === 'verified'; });
+    rows.push({
+      label: d.slice(5).replace('-', '/'),
+      book: sumQty(ds),
+      verify: sumQty(vs),
+      income: ds.reduce(function (a, o) { return a + o.amount; }, 0)
+    });
+  }
+  function buildChart(rows) {
+    var W = 720, H = 230, L = 42, R = 46, T = 14, B = 26;
+    var iw = W - L - R, ih = H - T - B;
+    var maxV = Math.max(10, Math.max.apply(null, rows.map(function (r) { return Math.max(r.book, r.verify); })));
+    var maxI = Math.max(1000, Math.max.apply(null, rows.map(function (r) { return r.income; })));
+    maxV = Math.ceil(maxV / 10) * 10;
+    var bw = iw / rows.length;
+    var s = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet">';
+    for (var i = 0; i <= 4; i++) {
+      var y = T + ih * i / 4;
+      s += '<line x1="' + L + '" y1="' + y + '" x2="' + (W - R) + '" y2="' + y + '" stroke="#eef3f3"/>';
+      s += '<text x="' + (L - 8) + '" y="' + (y + 4) + '" font-size="10" fill="#9aa7ad" text-anchor="end">' + Math.round(maxV * (4 - i) / 4) + '</text>';
+      s += '<text x="' + (W - R + 8) + '" y="' + (y + 4) + '" font-size="10" fill="#9aa7ad">' + Math.round(maxI * (4 - i) / 4 / 100) / 10 + 'k</text>';
+    }
+    var pts = [];
+    rows.forEach(function (r, i) {
+      var cx = L + bw * i + bw / 2, w = Math.min(16, bw / 3);
+      var h1 = ih * r.book / maxV, h2 = ih * r.verify / maxV;
+      s += '<rect x="' + (cx - w - 2) + '" y="' + (T + ih - h1) + '" width="' + w + '" height="' + h1 + '" rx="3" fill="#14a37f"/>';
+      s += '<rect x="' + (cx + 2) + '" y="' + (T + ih - h2) + '" width="' + w + '" height="' + h2 + '" rx="3" fill="#7bd6b8"/>';
+      s += '<text x="' + cx + '" y="' + (H - 8) + '" font-size="10" fill="#7b8a94" text-anchor="middle">' + r.label + '</text>';
+      pts.push(cx + ',' + (T + ih - ih * r.income / maxI));
+    });
+    s += '<polyline points="' + pts.join(' ') + '" fill="none" stroke="#f59f00" stroke-width="2" stroke-linejoin="round"/>';
+    pts.forEach(function (p) {
+      var xy = p.split(',');
+      s += '<circle cx="' + xy[0] + '" cy="' + xy[1] + '" r="3" fill="#fff" stroke="#f59f00" stroke-width="2"/>';
+    });
+    return s + '</svg>';
+  }
+  $('#chart').innerHTML = buildChart(rows);
+
+  /* 今日时段分布 */
+  $('#todayDate').textContent = today;
+  var TIMES = ['08:00-10:00', '10:00-12:00', '12:00-14:00', '14:00-16:00', '16:00-18:00'];
+  var maxT = Math.max(1, Math.max.apply(null, TIMES.map(function (tm) { return sumQty(todayOrders.filter(function (o) { return o.time === tm; })); })));
+  $('#timeDist').innerHTML = TIMES.map(function (tm) {
+    var n = sumQty(todayOrders.filter(function (o) { return o.time === tm; }));
+    return '<div class="mb12"><div class="flex ac jb s13 mb6"><span>' + tm + '</span><span class="b">' + n + ' 人</span></div>' +
+      '<div class="cap"><i style="width:' + (n / maxT * 100) + '%"></i></div></div>';
+  }).join('');
+
+  /* 待办 */
+  var full = C.DB.get().inventory.filter(function (iv) { return iv.total - iv.used <= 200; });
+  $('#todo').innerHTML =
+    '<div class="info-row"><span class="k">待支付订单</span><span class="tag orange">' + pendings.length + ' 单</span></div>' +
+    '<div class="info-row"><span class="k">今日待核销</span><span class="tag green">' + C.Orders.list({ status: 'booked' }).filter(function (o) { return o.date === today; }).length + ' 单</span></div>' +
+    '<div class="info-row"><span class="k">库存预警日期</span><span class="tag ' + (full.length ? 'red' : 'gray') + '">' + full.length + ' 天</span></div>' +
+    '<div class="info-row" style="border:0"><span class="k">近 7 日公告</span><span class="tag blue">' + C.DB.notices().length + ' 条</span></div>' +
+    '<div class="mt12"><a class="btn primary sm" href="orders.html?status=pending">去处理待支付订单</a></div>';
+
+  /* 票种占比 */
+  var total = sumQty(orders.filter(function (o) { return o.status !== 'cancelled'; })) || 1;
+  $('#ticketRate').innerHTML = C.DB.tickets(true).map(function (tk) {
+    var n = sumQty(orders.filter(function (o) { return o.ticket === tk.name && o.status !== 'cancelled'; }));
+    return '<div class="mb12"><div class="flex ac jb s13 mb6"><span>' + C.esc(tk.name) + '</span><span class="b">' + Math.round(n / total * 100) + '%</span></div>' +
+      '<div class="cap"><i style="width:' + (n / total * 100) + '%"></i></div></div>';
+  }).join('');
+
+  /* 库存预警 */
+  $('#warn').innerHTML = C.DB.get().inventory.slice(0, 7).map(function (iv) {
+    var pct = Math.round(iv.used / iv.total * 100);
+    var left = iv.total - iv.used;
+    return '<div class="mb12"><div class="flex ac jb s13 mb6"><span>' + iv.date.slice(5) + '</span>' +
+      '<span class="tag ' + (pct >= 90 ? 'red' : pct >= 70 ? 'orange' : 'green') + '">余 ' + left + '</span></div>' +
+      '<div class="cap"><i style="width:' + pct + '%;background:' + (pct >= 90 ? '#e03131' : pct >= 70 ? '#f59f00' : '#0f8a6a') + '"></i></div></div>';
+  }).join('');
+
+  /* 最新订单 */
+  var last = orders.slice(0, 6);
+  $('#lastOrders').innerHTML =
+    '<tr><th>订单号</th><th>票种</th><th>游玩日期</th><th>游客</th><th>金额</th><th>状态</th><th>操作</th></tr>' +
+    last.map(function (o) {
+      var st = C.statusOf(o.status);
+      return '<tr><td class="s12">' + o.no + '</td><td>' + C.esc(o.ticket) + '</td>' +
+        '<td class="s12">' + o.date + '<br><span class="muted">' + o.time + '</span></td>' +
+        '<td>' + C.esc(o.visitors[0].name) + (o.visitors.length > 1 ? ' 等 ' + o.visitors.length + ' 人' : '') + '</td>' +
+        '<td class="b">' + C.money(o.amount) + '</td>' +
+        '<td><span class="tag ' + st.cls + '">' + st.text + '</span></td>' +
+        '<td><a class="s12 primary" href="orders.html?kw=' + o.no + '">查看</a></td></tr>';
+    }).join('');
+})();
+</script>
+</body>
+</html>

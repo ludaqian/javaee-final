@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>核销记录 · 云栖山景区核销端</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/portal.css">
+</head>
+<body>
+<main class="app" data-title="核销记录" data-back="0" data-login="checker" data-bar="verify" data-tab="records">
+
+  <div class="pad">
+    <div class="rec-strip">
+      <div><div class="n primary" id="n1">0</div><div class="c">今日核销人次</div></div>
+      <div><div class="n" id="n2">0</div><div class="c">今日核销订单</div></div>
+      <div><div class="n" id="n3">0</div><div class="c">本月核销人次</div></div>
+    </div>
+
+    <div class="padx mt12" style="padding:0">
+      <div class="tabs" id="tabs">
+        <div class="tab on" data-t="today">今日</div>
+        <div class="tab" data-t="all">全部</div>
+        <div class="tab" data-t="mine">我的核销</div>
+      </div>
+    </div>
+
+    <div class="mt12" id="list"></div>
+  </div>
+  <div style="height:10px"></div>
+</main>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  var me = C.Auth.checker.get();
+  if (!me) { location.replace('login.html'); return; }
+  var today = C.dstr(C.today(), 0);
+  var cur = 'today';
+
+  function render() {
+    var all = C.Orders.list({ status: 'verified' }).sort(function (a, b) { return a.verifiedAt < b.verifiedAt ? 1 : -1; });
+    var list = all;
+    if (cur === 'today') list = all.filter(function (o) { return o.verifiedAt && o.verifiedAt.slice(0, 10) === today; });
+    if (cur === 'mine') list = all.filter(function (o) { return o.verifier === me.name; });
+
+    var td = all.filter(function (o) { return o.verifiedAt && o.verifiedAt.slice(0, 10) === today; });
+    $('#n1').textContent = td.reduce(function (a, o) { return a + o.qty; }, 0);
+    $('#n2').textContent = td.length;
+    $('#n3').textContent = all.reduce(function (a, o) { return a + o.qty; }, 0);
+
+    if (!list.length) { $('#list').innerHTML = '<div class="card">' + C.emptyHtml('暂无核销记录', '📋') + '</div>'; return; }
+
+    /* 按小时分组统计 */
+    var hours = {};
+    td.forEach(function (o) {
+      var h = new Date(o.verifiedAt).getHours();
+      hours[h] = (hours[h] || 0) + o.qty;
+    });
+    var maxH = Math.max(1, Math.max.apply(null, Object.keys(hours).map(function (k) { return hours[k]; }).concat([1])));
+
+    var HOURS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
+    $('#list').innerHTML = (cur === 'today' && td.length ?
+      '<div class="card mb12"><div class="card-hd"><h3>今日核销时段分布（人次）</h3></div>' +
+      '<div class="flex" style="gap:4px;align-items:flex-end;height:72px">' +
+      HOURS.map(function (h) {
+        var v = hours[h] || 0;
+        return '<div style="flex:1"><div style="height:' + Math.max(4, v / maxH * 60) + 'px;background:' +
+          (v ? '#14a37f' : '#e6efee') + ';border-radius:4px 4px 0 0"></div><div class="s12 muted tc">' + v + '</div></div>';
+      }).join('') + '</div>' +
+      '<div class="flex" style="gap:4px">' + HOURS.map(function (h) {
+        return '<div class="s12 muted tc" style="flex:1">' + h + '时</div>';
+      }).join('') + '</div></div>' : '') +
+      list.map(function (o) {
+        return '<div class="card mb12" style="padding:12px 14px">' +
+          '<div class="flex ac jb"><div class="b s14">' + C.esc(o.ticket) + ' × ' + o.qty + '</div>' +
+          '<span class="tag blue">已核销</span></div>' +
+          '<div class="s12 muted mt6">' + o.no + '</div>' +
+          '<div class="s12 muted">游客 ' + o.visitors.map(function (v) { return C.esc(v.name); }).join('、') + '</div>' +
+          '<div class="s12 muted mt6">' + C.fmtDateTime(o.verifiedAt) + ' · ' + C.esc(o.gate) + ' · ' + C.esc(o.verifier) + '</div>' +
+          '</div>';
+      }).join('');
+  }
+
+  $('#tabs').onclick = function (e) {
+    var t = e.target.closest('.tab'); if (!t) return;
+    C.$$('.tab', $('#tabs')).forEach(function (x) { x.classList.remove('on'); });
+    t.classList.add('on');
+    cur = t.getAttribute('data-t');
+    render();
+  };
+
+  render();
+})();
+</script>
+</body>
+</html>

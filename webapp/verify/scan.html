@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>扫码核销 · 云栖山景区核销端</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/portal.css">
+</head>
+<body>
+<main class="app" data-title="扫码核销" data-back="0" data-login="checker" data-bar="verify" data-tab="scan"
+      data-right="text:手动核销:verify/manual.html">
+
+  <div class="pad">
+    <div class="card" style="padding:10px 14px">
+      <div class="flex ac jb">
+        <div>
+          <div class="b s15" id="who">检票员</div>
+          <div class="s12 muted" id="gate"></div>
+        </div>
+        <div class="tr">
+          <div class="s12 muted">今日已核销</div>
+          <div class="b s18 primary" id="todayCount">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="scan-wrap mt12">
+      <video id="video" playsinline muted autoplay></video>
+      <div class="frame"></div>
+      <div class="laser"></div>
+      <div class="scan-tip" id="camTip">将游客订单二维码对准取景框</div>
+    </div>
+
+    <div class="flex g8 mt12">
+      <button class="btn outline f1" id="btnSim">模拟扫码（演示）</button>
+      <button class="btn ghost" id="btnLight" title="手电筒" style="width:48px;padding:0"></button>
+    </div>
+
+    <div class="card mt12">
+      <div class="card-hd"><h3>手输订单号核销</h3></div>
+      <div class="flex g8">
+        <input class="input f1" id="noInput" placeholder="输入订单号，如 YQ202610290001">
+        <button class="btn primary" id="btnGo" style="width:88px">核销</button>
+      </div>
+    </div>
+
+    <div class="padt"><div class="sec-title"><h2>最近核销</h2><a class="more" href="records.html">全部记录›</a></div></div>
+    <div class="padx"><div class="list" id="recent"></div></div>
+  </div>
+  <div style="height:10px"></div>
+</main>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  var me = C.Auth.checker.get();
+  if (!me) { location.replace('login.html'); return; }
+  var today = C.dstr(C.today(), 0);
+
+  $('#who').textContent = me.name + '（' + me.username + '）';
+  $('#gate').textContent = '值守闸口：' + me.gate;
+  $('#btnLight').innerHTML = C.icon('info');
+
+  function render() {
+    var recs = C.Orders.list({ status: 'verified' }).filter(function (o) {
+      return o.verifiedAt && o.verifiedAt.slice(0, 10) === today;
+    }).sort(function (a, b) { return a.verifiedAt < b.verifiedAt ? 1 : -1; });
+    $('#todayCount').textContent = recs.reduce(function (a, o) { return a + o.qty; }, 0);
+
+    var list = recs.slice(0, 5);
+    $('#recent').innerHTML = list.length ? list.map(function (o) {
+      return '<div class="cell">' +
+        '<div class="f1"><div class="s13 b">' + C.esc(o.ticket) + ' × ' + o.qty + '</div>' +
+        '<div class="s12 muted">' + o.no + ' · ' + C.fmtTime(o.verifiedAt) + '</div></div>' +
+        '<span class="tag green">已核销</span></div>';
+    }).join('') : '<div class="s12 muted tc" style="padding:20px">今日暂无核销记录</div>';
+  }
+
+  /* 执行核销 */
+  var busy = false;
+  function doVerify(code) {
+    if (busy) return;
+    code = (code || '').trim();
+    if (!code) { C.toast('未识别到有效二维码', 'err'); return; }
+    busy = true;
+    setTimeout(function () { busy = false; }, 1500);
+    var res = C.Orders.verify(code, me.name, me.gate);
+    location.href = 'result.html?no=' + encodeURIComponent(code) +
+      (res.ok ? '&r=ok' : '&r=' + (res.reason || 'notfound'));
+  }
+
+  /* 摄像头 */
+  var stream = null;
+  function noCam(msg) {
+    $('#video').style.display = 'none';
+    $('#camTip').textContent = msg || '当前设备无法调用摄像头，请使用「模拟扫码」或手动核销';
+  }
+  function startCam() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { noCam(); return; }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(function (s) {
+      stream = s;
+      $('#video').srcObject = s;
+      $('#video').play();
+      if ('BarcodeDetector' in window) {
+        var det = new window.BarcodeDetector({ formats: ['qr_code'] });
+        setInterval(function () {
+          if (busy) return;
+          det.detect($('#video')).then(function (codes) {
+            if (codes && codes.length && codes[0].rawValue) doVerify(codes[0].rawValue);
+          }).catch(function () { });
+        }, 700);
+      }
+    }).catch(function () { noCam(); });
+  }
+  startCam();
+  window.addEventListener('beforeunload', function () {
+    if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+  });
+
+  /* 模拟扫码：从今日未核销订单中选取 */
+  $('#btnSim').onclick = function () {
+    var list = C.Orders.list({ status: 'booked' });
+    if (!list.length) {
+      list = C.Orders.list({ status: 'pending' });
+    }
+    if (!list.length) { C.toast('暂无可演示的未核销订单', 'err'); return; }
+    var dlg = C.dialog({
+      title: '选择一张待核销订单',
+      okText: '关闭', cancelText: null,
+      html: '<div style="text-align:left;max-height:300px;overflow:auto">' + list.slice(0, 8).map(function (o) {
+        return '<div class="info-row"><span class="k">' + C.esc(o.ticket) + ' ×' + o.qty +
+          '<div class="s12 muted">' + o.no + '</div></span>' +
+          '<button class="btn outline sm" data-pick="' + o.no + '">扫码</button></div>';
+      }).join('') + '</div>'
+    });
+    $('.dialog', dlg).style.maxWidth = '420px';
+    dlg.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-pick]');
+      if (!b) return;
+      C.closeDialog();
+      setTimeout(function () { doVerify(b.getAttribute('data-pick')); }, 200);
+    });
+  };
+
+  $('#btnLight').onclick = function () { C.toast('演示环境不支持开启手电筒'); };
+  $('#btnGo').onclick = function () { doVerify($('#noInput').value); };
+  $('#noInput').onkeydown = function (e) { if (e.key === 'Enter') doVerify($('#noInput').value); };
+
+  render();
+})();
+</script>
+</body>
+</html>

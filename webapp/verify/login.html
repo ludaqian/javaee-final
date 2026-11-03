@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>检票员登录 · 云栖山景区核销端</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/portal.css">
+</head>
+<body>
+<main class="app" data-title="核销端登录" data-back="0" data-bar="none">
+
+  <div class="login-head">
+    <div class="logo" style="background:linear-gradient(135deg,#1c7ed6,#339af0)" id="logo"></div>
+    <h1>核销端 · 检票工作台</h1>
+    <div class="s13 muted mt6">云栖山景区智慧票务系统</div>
+  </div>
+
+  <div class="pad">
+    <form id="form">
+      <div class="field"><label>检票员账号</label><input class="input" id="user" value="checker01" placeholder="请输入账号"></div>
+      <div class="field"><label>密码</label><input class="input" id="pwd" type="password" value="123456" placeholder="请输入密码"></div>
+      <div class="field"><label>值守闸口</label>
+        <select class="select" id="gate">
+          <option>南门</option><option>北门</option><option>东门</option><option>西门</option>
+        </select>
+      </div>
+      <button class="btn primary block lg mt8" type="submit">登 录</button>
+      <div class="tc mt12 s12 muted">演示账号：checker01 / 123456</div>
+    </form>
+
+    <div class="card mt16" style="background:#f6fbf9">
+      <div class="s13 b mb8">使用说明</div>
+      <div class="s12 muted" style="line-height:1.9">
+        1. 登录后进入扫码核销页，将摄像头对准游客订单二维码；<br>
+        2. 无法扫码时，可切换到手动核销，输入订单号或身份证号；<br>
+        3. 核销成功后系统会记录核销员、闸口与时间。
+      </div>
+    </div>
+
+    <div class="tc mt12"><a class="s12 muted" href="../index.html">返回游客端首页</a> · <a class="s12 muted" href="../admin/login.html">管理后台</a></div>
+  </div>
+  <div style="height:20px"></div>
+</main>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  $('#logo').innerHTML = C.icon('scan', '', 1.6);
+  $('#form').onsubmit = function (e) {
+    e.preventDefault();
+    var u = $('#user').value.trim(), p = $('#pwd').value, g = $('#gate').value;
+    var user = C.DB.users().filter(function (x) { return x.username === u && x.role === 'checker'; })[0];
+    if (!user) { C.toast('账号不存在', 'err'); return; }
+    if (user.pwd !== p) { C.toast('密码错误，演示密码 123456', 'err'); return; }
+    if (!user.status) { C.toast('该账号已被停用，请联系管理员', 'err'); return; }
+    if ((user.perms || []).indexOf('scan') < 0) { C.toast('该账号无扫码核销权限', 'err'); return; }
+    C.Auth.checker.set({ id: user.id, name: user.name, username: u, gate: g, perms: user.perms });
+    C.toast('登录成功 · ' + g, 'ok');
+    setTimeout(function () { location.href = 'scan.html'; }, 600);
+  };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>景点与导览资源 · 云栖山景区管理后台</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/admin.css">
+</head>
+<body>
+<div class="admin-shell" data-nav="spots">
+  <main class="admin-main" data-crumb="内容与资源 / 景点与导览资源管理">
+    <div class="admin-body">
+
+      <div class="panel">
+        <div class="p-hd">
+          <h3>景点列表</h3>
+          <div class="filters">
+            <input class="input" id="kw" placeholder="搜索景点名称" style="width:180px">
+            <button class="btn ghost sm" id="btnSearch">搜索</button>
+            <button class="btn primary sm" id="btnAdd">+ 新增景点</button>
+          </div>
+        </div>
+        <div class="p-bd flush">
+          <div style="overflow-x:auto"><table class="table" id="tb"></table></div>
+          <div class="pager" style="padding:12px 16px"><span class="s12 muted" id="count"></span></div>
+        </div>
+      </div>
+
+      <div class="grid2 mt16">
+        <div class="panel">
+          <div class="p-hd"><h3>导览地图预览</h3><span class="s12 muted">坐标范围 0-100</span></div>
+          <div class="p-bd"><div id="mapPreview" style="background:#eaf3ee;border-radius:12px;overflow:hidden"></div></div>
+        </div>
+        <div class="panel">
+          <div class="p-hd">
+            <h3>设施标注</h3>
+            <button class="btn primary sm" id="btnAddFac">+ 新增设施</button>
+          </div>
+          <div class="p-bd flush">
+            <div style="overflow-x:auto"><table class="table" id="facTb"></table></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<input type="file" id="fileAudio" accept="audio/*" style="display:none">
+<input type="file" id="fileImg" accept="image/*" style="display:none">
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  var CATS = ['人文古迹', '自然景观', '观景平台', '游乐项目', '地质景观', '服务设施'];
+  var FTYPES = [
+    { v: 'wc', t: '卫生间' }, { v: 'park', t: '停车场' }, { v: 'center', t: '游客中心' },
+    { v: 'med', t: '医疗点' }, { v: 'food', t: '餐饮服务' }
+  ];
+  var curId = null, curKind = '';
+  var kw = '';
+
+  function render() {
+    var list = C.DB.spots().filter(function (s) { return !kw || s.name.indexOf(kw) >= 0; });
+    $('#tb').innerHTML =
+      '<tr><th>景点</th><th>类别</th><th>坐标</th><th>建议时长</th><th>开放时间</th><th>语音导览</th><th>热门</th><th style="width:230px">操作</th></tr>' +
+      list.map(function (s) {
+        return '<tr>' +
+          '<td><b>' + C.esc(s.name) + '</b>' + (s.imgUrl ? ' <span class="tag blue">图</span>' : '') + '</td>' +
+          '<td><span class="tag blue">' + C.esc(s.cat) + '</span></td>' +
+          '<td class="s12">(' + s.x + ', ' + s.y + ')</td>' +
+          '<td class="s12">' + C.esc(s.duration) + '</td>' +
+          '<td class="s12">' + C.esc(s.open) + '</td>' +
+          '<td class="s12">' + (s.audioName ? '🎧 ' + C.esc(s.audioName) : '<span class="muted">文稿朗读</span>') + '</td>' +
+          '<td>' + (s.hot ? '<span class="tag orange">热门</span>' : '<span class="tag gray">普通</span>') + '</td>' +
+          '<td>' +
+          '<button class="s12 primary" data-edit="' + s.id + '">编辑</button> ' +
+          '<button class="s12" data-audio="' + s.id + '">上传音频</button> ' +
+          '<button class="s12" data-img="' + s.id + '">上传图片</button> ' +
+          '<button class="s12" data-nav="spot:' + s.id + '">预览</button> ' +
+          '<button class="s12 danger" data-del="' + s.id + '">删除</button></td>' +
+          '</tr>';
+      }).join('');
+    $('#count').textContent = '共 ' + list.length + ' 个景点';
+
+    /* 地图预览 */
+    var W = 640, H = 300;
+    var X = function (p) { return (p / 100 * W).toFixed(1); }, Y = function (p) { return (p / 100 * H).toFixed(1); };
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block">' +
+      '<rect width="' + W + '" height="' + H + '" fill="#eaf3ee"/>' +
+      '<ellipse cx="' + X(60) + '" cy="' + Y(46) + '" rx="70" ry="46" fill="#a9dcea" opacity=".8"/>';
+    C.DB.facilities().forEach(function (f) {
+      svg += '<circle cx="' + X(f.x) + '" cy="' + Y(f.y) + '" r="7" fill="#fff" stroke="#7b8a94" stroke-width="1.5"/>';
+    });
+    C.DB.route().forEach(function (id, i, arr) {
+      var s1 = C.DB.spot(id), s2 = C.DB.spot(arr[i + 1]);
+      if (s1 && s2) svg += '<line x1="' + X(s1.x) + '" y1="' + Y(s1.y) + '" x2="' + X(s2.x) + '" y2="' + Y(s2.y) + '" stroke="#f59f00" stroke-width="2" stroke-dasharray="5 5"/>';
+    });
+    C.DB.spots().forEach(function (s) {
+      svg += '<circle cx="' + X(s.x) + '" cy="' + Y(s.y) + '" r="8" fill="#0f8a6a" stroke="#fff" stroke-width="2"/>' +
+        '<text x="' + X(s.x) + '" y="' + (Y(s.y) - 12) + '" font-size="11" fill="#22333a" text-anchor="middle">' + C.esc(s.name) + '</text>';
+    });
+    $('#mapPreview').innerHTML = svg + '</svg>';
+
+    /* 设施 */
+    $('#facTb').innerHTML =
+      '<tr><th>设施名称</th><th>类型</th><th>坐标</th><th style="width:110px">操作</th></tr>' +
+      C.DB.facilities().map(function (f) {
+        var t = FTYPES.filter(function (x) { return x.v === f.type; })[0];
+        return '<tr><td>' + C.esc(f.name) + '</td><td><span class="tag gray">' + (t ? t.t : f.type) + '</span></td>' +
+          '<td class="s12">(' + f.x + ', ' + f.y + ')</td>' +
+          '<td><button class="s12 primary" data-fedit="' + f.id + '">编辑</button> ' +
+          '<button class="s12 danger" data-fdel="' + f.id + '">删除</button></td></tr>';
+      }).join('');
+  }
+
+  function openForm(id) {
+    var s = id ? C.DB.spot(id) : { name: '', cat: '自然景观', x: 50, y: 50, k: 0, hot: 0, duration: '约 20 分钟', open: '08:00-18:00', desc: '', audio: '', tips: '' };
+    C.formDialog({
+      title: id ? '编辑景点' : '新增景点',
+      fields: [
+        { k: 'name', label: '景点名称', value: s.name, required: 1 },
+        { k: 'cat', label: '景点类别', type: 'select', value: s.cat, options: CATS.map(function (c) { return { v: c, t: c }; }) },
+        { k: 'x', label: '地图坐标 X（0-100）', type: 'number', value: s.x },
+        { k: 'y', label: '地图坐标 Y（0-100）', type: 'number', value: s.y },
+        { k: 'k', label: '封面配色序号（0-5）', type: 'number', value: s.k },
+        { k: 'duration', label: '建议游玩时长', value: s.duration },
+        { k: 'open', label: '开放时间', value: s.open },
+        { k: 'tips', label: '游玩提示', value: s.tips },
+        { k: 'desc', label: '景点介绍', type: 'textarea', value: s.desc },
+        { k: 'audio', label: '语音导览文稿（未上传音频时自动朗读）', type: 'textarea', value: s.audio },
+        { k: 'hot', label: '设为热门景点', type: 'switch', value: s.hot }
+      ],
+      onOk: function (d) {
+        if (!d.name.trim()) { C.toast('请填写景点名称', 'err'); return false; }
+        C.DB.update(function (db) {
+          var o = id ? db.spots.filter(function (x) { return x.id === id; })[0] : null;
+          if (!o) { o = { id: 's' + Date.now().toString(36), k: 0 }; db.spots.push(o); }
+          Object.assign(o, {
+            name: d.name.trim(), cat: d.cat, x: +d.x || 0, y: +d.y || 0, k: +d.k || 0,
+            duration: d.duration, open: d.open, tips: d.tips, desc: d.desc, audio: d.audio, hot: +d.hot
+          });
+        });
+        C.toast(id ? '景点已更新' : '景点已新增', 'ok');
+        render();
+      }
+    });
+  }
+
+  function openFac(id) {
+    var f = id ? C.DB.facilities().filter(function (x) { return x.id === id; })[0] : { name: '', type: 'wc', x: 50, y: 50 };
+    C.formDialog({
+      title: id ? '编辑设施' : '新增设施',
+      fields: [
+        { k: 'name', label: '设施名称', value: f.name, required: 1 },
+        { k: 'type', label: '设施类型', type: 'select', value: f.type, options: FTYPES },
+        { k: 'x', label: '坐标 X（0-100）', type: 'number', value: f.x },
+        { k: 'y', label: '坐标 Y（0-100）', type: 'number', value: f.y }
+      ],
+      onOk: function (d) {
+        C.DB.update(function (db) {
+          var o = id ? db.facilities.filter(function (x) { return x.id === id; })[0] : null;
+          if (!o) { o = { id: 'f' + Date.now().toString(36) }; db.facilities.push(o); }
+          Object.assign(o, { name: d.name.trim(), type: d.type, x: +d.x || 0, y: +d.y || 0 });
+        });
+        C.toast('设施已保存', 'ok'); render();
+      }
+    });
+  }
+
+  $('#btnAdd').onclick = function () { openForm(null); };
+  $('#btnAddFac').onclick = function () { openFac(null); };
+  $('#btnSearch').onclick = function () { kw = $('#kw').value.trim(); render(); };
+
+  /* 文件上传 */
+  var fa = $('#fileAudio'), fi = $('#fileImg');
+  fa.onchange = function () {
+    var file = fa.files[0]; if (!file) return;
+    var url = URL.createObjectURL(file);
+    C.DB.update(function (db) {
+      var s = db.spots.filter(function (x) { return x.id === curId; })[0];
+      if (s) { s.audioName = file.name; s.audioUrl = url; }
+    });
+    C.toast('语音导览音频已上传：' + file.name, 'ok');
+    fa.value = ''; render();
+  };
+  fi.onchange = function () {
+    var file = fi.files[0]; if (!file) return;
+    var url = URL.createObjectURL(file);
+    C.DB.update(function (db) {
+      var s = db.spots.filter(function (x) { return x.id === curId; })[0];
+      if (s) { s.imgUrl = url; }
+    });
+    C.toast('景点图片已上传：' + file.name, 'ok');
+    fi.value = ''; render();
+  };
+
+  document.addEventListener('click', function (e) {
+    var b;
+    if ((b = e.target.closest('[data-edit]'))) { openForm(b.getAttribute('data-edit')); }
+    if ((b = e.target.closest('[data-audio]'))) { curId = b.getAttribute('data-audio'); fa.click(); }
+    if ((b = e.target.closest('[data-img]'))) { curId = b.getAttribute('data-img'); fi.click(); }
+    if ((b = e.target.closest('[data-fedit]'))) { openFac(b.getAttribute('data-fedit')); }
+    if ((b = e.target.closest('[data-nav]'))) {
+      var p = b.getAttribute('data-nav').split(':');
+      if (p[0] === 'spot') window.open('../pages/spot.html?id=' + p[1], '_blank');
+    }
+    if ((b = e.target.closest('[data-fdel]'))) {
+      var fid = b.getAttribute('data-fdel');
+      C.DB.update(function (db) { db.facilities = db.facilities.filter(function (x) { return x.id !== fid; }); });
+      C.toast('设施已删除', 'ok'); render();
+    }
+    if ((b = e.target.closest('[data-del]'))) {
+      var id = b.getAttribute('data-del');
+      C.confirmBox('删除景点将同时从推荐路线中移除，确认删除？', function () {
+        C.DB.update(function (db) {
+          db.spots = db.spots.filter(function (x) { return x.id !== id; });
+          db.route = db.route.filter(function (r) { return r !== id; });
+        });
+        C.toast('景点已删除', 'ok'); render();
+      }, { danger: true, okText: '删除' });
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

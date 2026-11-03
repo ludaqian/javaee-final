@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>帮助与须知 · 云栖山景区</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/portal.css">
+<style>
+.faq { border-bottom: 1px solid #f1f5f5; padding: 10px 0; }
+.faq .q { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.faq .arrow { width: 16px; height: 16px; color: #c3ced1; transition: transform .2s; }
+.faq .a { padding: 8px 0 2px; }
+</style>
+</head>
+<body>
+<main class="app" data-title="帮助与须知" data-back="1" data-bar="none">
+
+  <div class="padx">
+    <div class="tabs" id="tabs">
+      <div class="tab on" data-t="0">预约规则</div>
+      <div class="tab" data-t="1">退票规则</div>
+      <div class="tab" data-t="2">常见问题</div>
+      <div class="tab" data-t="3">联系我们</div>
+    </div>
+  </div>
+
+  <div class="pad"><div class="card" id="body"></div></div>
+  <div style="height:16px"></div>
+</main>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  var st = C.DB.settings();
+
+  var rule = [
+    '<div class="s13 b">预约流程</div>',
+    '<div class="s13 muted" style="line-height:2">1. 选择票种与游玩日期 → 2. 选择入园时段 → 3. 填写游客实名信息 → 4. 提交订单并完成支付 → 5. 凭二维码或身份证核验入园。</div>',
+    '<div class="s13 b mt12">预约限制</div>',
+    '<div class="s13 muted" style="line-height:2">' +
+    '· 可提前预约 ' + st.advanceDays + ' 天内的门票，每日 08:00 放票；<br>' +
+    '· 每个订单最多 ' + st.maxPerOrder + ' 张，不同票种限购数量不同；<br>' +
+    '· 同一身份证同一日期仅可预约 1 单；<br>' +
+    '· 每个手机号每日最多提交 3 个订单。</div>',
+    '<div class="s13 b mt12">实名与入园</div>',
+    '<div class="s13 muted" style="line-height:2">' +
+    '· 景区实行实名制预约，须填写真实姓名与身份证号；<br>' +
+    '· 请在所选时段内抵达，提前或延误超过 30 分钟需现场协调；<br>' +
+    '· 1.2 米以下儿童免票，须由成人陪同，无需单独预约。</div>'
+  ].join('');
+
+  var refund = [
+    '<div class="s13 b">退票规则</div>',
+    '<div class="s13 muted" style="line-height:2">' + C.esc(st.refundRule) + '</div>',
+    '<div class="s13 b mt12">退款说明</div>',
+    '<table class="mt8" style="width:100%;font-size:13px;border:1px solid #eef3f3;border-radius:10px;overflow:hidden">' +
+    '<tr style="background:#f5f9f8"><th style="padding:8px 10px">取消时间</th><th style="padding:8px 10px">手续费</th><th style="padding:8px 10px">到账时间</th></tr>' +
+    '<tr><td style="padding:8px 10px;border-top:1px solid #f1f5f5">游玩日前一天 24:00 前</td><td style="padding:8px 10px;border-top:1px solid #f1f5f5">免费</td><td style="padding:8px 10px;border-top:1px solid #f1f5f5">1-3 个工作日</td></tr>' +
+    '<tr><td style="padding:8px 10px;border-top:1px solid #f1f5f5">游玩日当天</td><td style="padding:8px 10px;border-top:1px solid #f1f5f5">' + st.refundFee + '%</td><td style="padding:8px 10px;border-top:1px solid #f1f5f5">1-3 个工作日</td></tr>' +
+    '<tr><td style="padding:8px 10px;border-top:1px solid #f1f5f5">已核销 / 已过期</td><td style="padding:8px 10px;border-top:1px solid #f1f5f5">不支持退票</td><td style="padding:8px 10px;border-top:1px solid #f1f5f5">--</td></tr>' +
+    '</table>',
+    '<div class="s13 b mt12">退票流程</div>',
+    '<div class="s13 muted" style="line-height:2">我的订单 → 选择订单 → 申请退票 → 系统审核 → 原路退回支付账户。如超时未收到退款，请联系客服。</div>'
+  ].join('');
+
+  var faqs = [
+    ['忘记携带身份证怎么办？', '可在景区游客中心（南门旁）办理临时核验，需报出订单号与身份证号，工作人员核对后发放临时入园凭证。'],
+    ['可以修改游玩日期或时段吗？', '订单不支持直接改期。请先申请退票，再重新预约新的日期与时段。游玩日前一天 24:00 前退票免收手续费。'],
+    ['预约后没有收到短信？', '请检查手机是否拦截了营销短信，或在"我的订单"中查看订单状态。订单以系统内状态为准，短信仅作提醒。'],
+    ['一个订单可以让多人一起入园吗？', '可以。请在检票口出示订单二维码，检票员一次核销该订单全部人数，同行人员须同时到齐。'],
+    ['下雨天景区会关闭吗？', '一般降雨不影响开放。遇雷暴、大风等恶劣天气，索道与部分登山线路会临时封闭，请以当日景区公告为准。'],
+    ['发票该如何开具？', '入园后在"我的订单 - 订单详情"中点击"申请发票"，选择电子普票或专票，开票信息提交后 2 小时内发送至预留邮箱。'],
+    ['儿童和老人如何购票？', '1.2 米以下儿童免票（需成人陪同）；60 周岁以上长者购买长者票；70 周岁以上老人凭身份证免票，均需预约 0 元票。'],
+    ['停车如何收费？', '游客中心停车场 1200 个车位，5 元 / 小时，当日 30 元封顶；持当日门票可享受 2 小时免费停车优惠。']
+  ];
+  var faqHtml = faqs.map(function (f, i) {
+    return '<div class="faq" data-i="' + i + '">' +
+      '<div class="q"><div class="f1 b s13">' + C.esc(f[0]) + '</div><span class="arrow">' + C.icon('right') + '</span></div>' +
+      '<div class="a s13 muted hide" style="line-height:1.9">' + C.esc(f[1]) + '</div></div>';
+  }).join('');
+
+  var contact = [
+    '<div class="info-row"><span class="k">客服热线</span><span class="b">0571-8888 6688</span></div>',
+    '<div class="info-row"><span class="k">投诉建议</span><span>0571-8888 6699</span></div>',
+    '<div class="info-row"><span class="k">紧急救援</span><span class="danger b">0571-8888 6119</span></div>',
+    '<div class="info-row"><span class="k">景区地址</span><span>' + C.esc(st.address) + '</span></div>',
+    '<div class="info-row" style="border:0"><span class="k">开放时间</span><span>' + C.esc(st.openTime) + '</span></div>',
+    '<div class="mt12 s13 muted" style="line-height:2">' +
+    '<b>游客中心：</b>南门入口处，提供咨询、轮椅与婴儿车租借、行李寄存、医疗急救服务。<br>' +
+    '<b>失物招领：</b>请致电客服热线或前往游客中心登记。<br>' +
+    '<b>线上服务：</b>本系统为课程设计演示项目，支付与短信均为模拟流程。' +
+    '</div>'
+  ].join('');
+
+  var bodies = [rule, refund, faqHtml, contact];
+  $('#body').innerHTML = bodies[0];
+
+  $('#tabs').onclick = function (e) {
+    var t = e.target.closest('.tab'); if (!t) return;
+    C.$$('.tab', $('#tabs')).forEach(function (x) { x.classList.remove('on'); });
+    t.classList.add('on');
+    $('#body').innerHTML = bodies[+t.getAttribute('data-t')];
+  };
+
+  $('#body').addEventListener('click', function (e) {
+    var f = e.target.closest('.faq');
+    if (!f) return;
+    f.querySelector('.a').classList.toggle('hide');
+    f.querySelector('.arrow').style.transform = f.querySelector('.a').classList.contains('hide') ? '' : 'rotate(90deg)';
+  });
+})();
+</script>
+</body>
+</html>

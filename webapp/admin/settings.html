@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>系统设置 · 云栖山景区管理后台</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/admin.css">
+</head>
+<body>
+<div class="admin-shell" data-nav="settings">
+  <main class="admin-main" data-crumb="系统 / 系统设置">
+    <div class="admin-body">
+
+      <div class="grid2">
+        <div class="panel">
+          <div class="p-hd"><h3>景区基础信息</h3></div>
+          <div class="p-bd">
+            <div class="field"><label>景区名称</label><input class="input" id="sName"></div>
+            <div class="field"><label>景区地址</label><input class="input" id="sAddr"></div>
+            <div class="field"><label>咨询电话</label><input class="input" id="sPhone"></div>
+            <div class="field" style="margin:0"><label>开放时间</label><input class="input" id="sOpen"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="p-hd"><h3>预约与限流规则</h3></div>
+          <div class="p-bd">
+            <div class="field"><label>每日最大承载量（人）</label><input class="input" type="number" id="sMax"></div>
+            <div class="field"><label>可提前预约天数</label><input class="input" type="number" id="sAdv"></div>
+            <div class="field"><label>每单最多购票数量</label><input class="input" type="number" id="sPer"></div>
+            <div class="field" style="margin:0"><label>限流预警阈值（剩余名额）</label><input class="input" type="number" id="sNotice"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel mt16">
+        <div class="p-hd"><h3>退票规则</h3></div>
+        <div class="p-bd">
+          <div class="field"><label>退票规则说明</label><textarea class="textarea" id="sRule"></textarea></div>
+          <div class="field" style="margin:0"><label>当日退票手续费（%）</label><input class="input" type="number" id="sFee" style="max-width:200px"></div>
+        </div>
+      </div>
+
+      <div class="panel mt16">
+        <div class="p-hd"><h3>系统开关</h3></div>
+        <div class="p-bd">
+          <div class="info-row"><span class="k">达到承载量后自动停止放票</span><span class="switch on" id="swAuto"></span></div>
+          <div class="info-row"><span class="k">允许游玩日当天预约</span><span class="switch on" id="swToday"></span></div>
+          <div class="info-row" style="border:0"><span class="k">预约成功后发送短信提醒</span><span class="switch on" id="swSms"></span></div>
+        </div>
+      </div>
+
+      <div class="flex g12 mt16">
+        <button class="btn primary" id="btnSave">保存设置</button>
+        <button class="btn ghost" id="btnClear">清空全部订单</button>
+        <button class="btn ghost" id="btnReset">重置演示数据</button>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  var st = C.DB.settings();
+
+  $('#sName').value = st.scenicName;
+  $('#sAddr').value = st.address;
+  $('#sPhone').value = st.phone;
+  $('#sOpen').value = st.openTime;
+  $('#sMax').value = st.maxPerDay;
+  $('#sAdv').value = st.advanceDays;
+  $('#sPer').value = st.maxPerOrder;
+  $('#sNotice').value = st.noticeLimit;
+  $('#sRule').value = st.refundRule;
+  $('#sFee').value = st.refundFee;
+
+  ['swAuto', 'swToday', 'swSms'].forEach(function (id) {
+    $('#' + id).onclick = function () { $('#' + id).classList.toggle('on'); };
+  });
+  $('#swAuto').classList.toggle('on', !!st.autoClose);
+
+  $('#btnSave').onclick = function () {
+    C.DB.update(function (db) {
+      var s = db.settings;
+      s.scenicName = $('#sName').value.trim() || s.scenicName;
+      s.address = $('#sAddr').value.trim();
+      s.phone = $('#sPhone').value.trim();
+      s.openTime = $('#sOpen').value.trim();
+      s.maxPerDay = +$('#sMax').value || s.maxPerDay;
+      s.advanceDays = +$('#sAdv').value || s.advanceDays;
+      s.maxPerOrder = +$('#sPer').value || s.maxPerOrder;
+      s.noticeLimit = +$('#sNotice').value || 0;
+      s.refundRule = $('#sRule').value.trim();
+      s.refundFee = +$('#sFee').value || 0;
+      s.autoClose = $('#swAuto').classList.contains('on') ? 1 : 0;
+      db.scenic.name = s.scenicName;
+      db.scenic.address = s.address;
+      db.scenic.phone = s.phone;
+      db.scenic.open = s.openTime;
+    });
+    C.toast('设置已保存', 'ok');
+  };
+
+  $('#btnClear').onclick = function () {
+    C.confirmBox('将清空全部订单数据（票种与景点不受影响），确认操作？', function () {
+      C.DB.update(function (db) { db.orders = []; });
+      C.toast('订单数据已清空', 'ok');
+    }, { danger: true, okText: '清空' });
+  };
+  $('#btnReset').onclick = function () {
+    C.confirmBox('将恢复系统内置演示数据，确认重置？', function () {
+      C.DB.reset(); C.toast('演示数据已重置', 'ok');
+      setTimeout(function () { location.reload(); }, 600);
+    }, { danger: true, okText: '重置' });
+  };
+})();
+</script>
+</body>
+</html>

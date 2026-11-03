@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>手动核销 · 云栖山景区核销端</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/portal.css">
+</head>
+<body>
+<main class="app" data-title="手动核销" data-back="0" data-login="checker" data-bar="verify" data-tab="manual">
+
+  <div class="pad">
+    <div class="card">
+      <div class="tabs" id="tabs" style="background:#f2f7f6">
+        <div class="tab on" data-t="no">订单号查询</div>
+        <div class="tab" data-t="id">身份证号查询</div>
+      </div>
+      <div class="mt12 flex g8">
+        <input class="input f1" id="kw" placeholder="请输入订单号">
+        <button class="btn primary" id="btnQuery" style="width:80px">查询</button>
+      </div>
+      <div class="s12 muted mt8">提示：输入后四位也可模糊查询，如 0001</div>
+    </div>
+
+    <div id="result"></div>
+
+    <div class="padt">
+      <div class="sec-title"><h2>今日待核销订单</h2><span class="more" id="waitTip"></span></div>
+    </div>
+    <div class="padx"><div id="waitList"></div></div>
+  </div>
+  <div style="height:10px"></div>
+</main>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  var me = C.Auth.checker.get();
+  if (!me) { location.replace('login.html'); return; }
+  var today = C.dstr(C.today(), 0);
+  var mode = 'no';
+
+  $('#tabs').onclick = function (e) {
+    var t = e.target.closest('.tab'); if (!t) return;
+    C.$$('.tab', $('#tabs')).forEach(function (x) { x.classList.remove('on'); });
+    t.classList.add('on');
+    mode = t.getAttribute('data-t');
+    $('#kw').placeholder = mode === 'no' ? '请输入订单号' : '请输入 18 位身份证号';
+    $('#result').innerHTML = '';
+  };
+
+  function verifyNo(no) {
+    var res = C.Orders.verify(no, me.name, me.gate);
+    location.href = 'result.html?no=' + encodeURIComponent(no) +
+      (res.ok ? '&r=ok' : '&r=' + (res.reason || 'notfound'));
+  }
+
+  function doQuery() {
+    var kw = $('#kw').value.trim();
+    if (!kw) { C.toast('请输入查询内容', 'err'); return; }
+    var list;
+    if (mode === 'no') {
+      list = C.Orders.all().filter(function (o) { return o.no.indexOf(kw.toUpperCase()) >= 0; });
+    } else {
+      list = C.Orders.all().filter(function (o) {
+        return o.visitors.some(function (v) { return v.idcard.toUpperCase().indexOf(kw.toUpperCase()) >= 0; });
+      });
+    }
+    if (!list.length) { $('#result').innerHTML = '<div class="card mt12">' + C.emptyHtml('未查询到相关预约记录', '🔍') + '</div>'; return; }
+
+    $('#result').innerHTML = '<div class="card mt12"><div class="card-hd"><h3>查询结果</h3><span class="more">共 ' + list.length + ' 条</span></div>' +
+      list.map(function (o) {
+        var st = C.statusOf(o.status);
+        var can = o.status === 'booked';
+        return '<div style="border-top:1px solid #f1f5f5;padding-top:10px;margin-top:10px">' +
+          '<div class="flex ac jb"><b class="s14">' + C.esc(o.ticket) + ' × ' + o.qty + '</b>' +
+          '<span class="tag ' + st.cls + '">' + st.text + '</span></div>' +
+          '<div class="s12 muted mt6">订单号 ' + o.no + '</div>' +
+          '<div class="s12 muted">游玩日期 ' + o.date + ' ' + o.time + '</div>' +
+          '<div class="s12 muted">游客 ' + o.visitors.map(function (v) {
+            return C.esc(v.name) + '（' + C.maskId(v.idcard) + '）';
+          }).join('、') + '</div>' +
+          '<div class="s12 muted">联系人 ' + C.esc(o.contact.name) + ' ' + C.esc(o.contact.phone) + '</div>' +
+          '<div class="mt8"><button class="btn ' + (can ? 'primary' : 'ghost disabled') + ' sm block" data-v="' + o.no + '">' +
+          (can ? '确认核销' : st.text + '，无法核销') + '</button></div></div>';
+      }).join('') + '</div>';
+
+    C.$$('#result [data-v]').forEach(function (el) {
+      el.onclick = function () {
+        if (el.classList.contains('disabled')) return;
+        verifyNo(el.getAttribute('data-v'));
+      };
+    });
+  }
+
+  $('#btnQuery').onclick = doQuery;
+  $('#kw').onkeydown = function (e) { if (e.key === 'Enter') doQuery(); };
+
+  /* 今日待核销 */
+  function renderWait() {
+    var list = C.Orders.list({ status: 'booked' }).filter(function (o) { return o.date === today; });
+    $('#waitTip').textContent = list.length + ' 单待核销';
+    $('#waitList').innerHTML = list.length ? list.map(function (o) {
+      return '<div class="card mb12" style="padding:12px 14px">' +
+        '<div class="flex ac jb"><div><div class="b s14">' + C.esc(o.ticket) + ' × ' + o.qty + '</div>' +
+        '<div class="s12 muted mt6">' + o.no + ' · ' + o.time + '</div>' +
+        '<div class="s12 muted mt6">' + o.visitors.map(function (v) { return C.esc(v.name); }).join('、') + '</div></div>' +
+        '<button class="btn primary sm" data-v="' + o.no + '">核销</button></div></div>';
+    }).join('') : '<div class="card">' + C.emptyHtml('今日暂无待核销订单', '✅') + '</div>';
+    C.$$('#waitList [data-v]').forEach(function (el) {
+      el.onclick = function () { verifyNo(el.getAttribute('data-v')); };
+    });
+  }
+  renderWait();
+})();
+</script>
+</body>
+</html>

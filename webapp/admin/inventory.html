@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>日期库存管理 · 云栖山景区管理后台</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/admin.css">
+</head>
+<body>
+<div class="admin-shell" data-nav="inventory">
+  <main class="admin-main" data-crumb="票务管理 / 日期库存管理">
+    <div class="admin-body">
+
+      <div class="panel">
+        <div class="p-hd">
+          <h3>未来 7 日可预约名额</h3>
+          <div class="filters">
+            <button class="btn outline sm" id="btnBatch">批量设置</button>
+            <button class="btn primary sm" id="btnExtend">+ 增加日期</button>
+          </div>
+        </div>
+        <div class="p-bd">
+          <div class="inv-grid" id="grid"></div>
+        </div>
+      </div>
+
+      <div class="panel mt16">
+        <div class="p-hd"><h3>库存明细</h3><span class="s12 muted">限流数量 = 当日总名额上限</span></div>
+        <div class="p-bd flush">
+          <div style="overflow-x:auto"><table class="table" id="tb"></table></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+
+  function render() {
+    var inv = C.DB.get().inventory.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    var today = C.dstr(C.today(), 0);
+
+    $('#grid').innerHTML = inv.map(function (iv) {
+      var pct = Math.round(iv.used / iv.total * 100);
+      var left = iv.total - iv.used;
+      return '<div class="inv-cell' + (iv.date === today ? ' today' : '') + '">' +
+        '<div class="flex ac jb"><div><div class="d">' + iv.date.slice(5).replace('-', '/') + '</div>' +
+        '<div class="s12 muted">' + C.dateLabel(iv.date) + ' ' + C.weekOf(iv.date) + '</div></div>' +
+        '<span class="tag ' + (pct >= 90 ? 'red' : pct >= 70 ? 'orange' : 'green') + '">' + pct + '%</span></div>' +
+        '<div class="bar"><i class="' + (pct >= 90 ? 'hot' : '') + '" style="width:' + pct + '%"></i></div>' +
+        '<div class="info">总名额 ' + iv.total + ' · 已约 ' + iv.used + '</div>' +
+        '<div class="info b primary">剩余 ' + left + ' 张</div>' +
+        '<div class="set"><button class="btn outline sm block" data-set="' + iv.date + '">设置名额</button></div>' +
+        '</div>';
+    }).join('');
+
+    $('#tb').innerHTML =
+      '<tr><th>日期</th><th>星期</th><th>限流总数</th><th>已预约</th><th>已核销</th><th>剩余</th><th>预约率</th><th>操作</th></tr>' +
+      inv.map(function (iv) {
+        var verified = C.Orders.list({ date: iv.date, status: 'verified' }).reduce(function (a, o) { return a + o.qty; }, 0);
+        var pct = Math.round(iv.used / iv.total * 100);
+        return '<tr><td class="b">' + iv.date + (iv.date === today ? ' <span class="tag green">今日</span>' : '') + '</td>' +
+          '<td>' + C.weekOf(iv.date) + '</td>' +
+          '<td>' + iv.total + '</td><td>' + iv.used + '</td><td>' + verified + '</td>' +
+          '<td class="b primary">' + (iv.total - iv.used) + '</td>' +
+          '<td><div class="cap" style="width:90px"><i style="width:' + pct + '%;background:' + (pct >= 90 ? '#e03131' : pct >= 70 ? '#f59f00' : '#0f8a6a') + '"></i></div><span class="s12 muted">' + pct + '%</span></td>' +
+          '<td><button class="s12 primary" data-set="' + iv.date + '">编辑</button> ' +
+          '<button class="s12 danger" data-clear="' + iv.date + '">清空预约</button></td></tr>';
+      }).join('');
+  }
+
+  function setCap(date) {
+    var iv = C.DB.get().inventory.filter(function (x) { return x.date === date; })[0];
+    C.formDialog({
+      title: date + ' 名额设置',
+      fields: [
+        { k: 'total', label: '限流总数（当日最大承载量）', type: 'number', value: iv ? iv.total : 3000 },
+        { k: 'used', label: '已预约数量', type: 'number', value: iv ? iv.used : 0 },
+        { k: 'fee', label: '当日票价浮动（元，0 为不调整）', type: 'number', value: 0 }
+      ],
+      onOk: function (d) {
+        C.DB.update(function (db) {
+          var o = db.inventory.filter(function (x) { return x.date === date; })[0];
+          if (!o) { o = { date: date, total: 0, used: 0 }; db.inventory.push(o); }
+          o.total = +d.total || 0;
+          o.used = Math.min(+d.used || 0, o.total);
+        });
+        C.toast('名额已更新', 'ok'); render();
+      }
+    });
+  }
+
+  $('#btnBatch').onclick = function () {
+    C.formDialog({
+      title: '批量设置未来 7 日名额',
+      fields: [
+        { k: 'total', label: '每日总名额', type: 'number', value: 4000 },
+        { k: 'mode', label: '应用范围', type: 'select', value: 'week', options: [{ v: 'week', t: '未来 7 日（含今日）' }, { v: 'workday', t: '仅工作日' }, { v: 'weekend', t: '仅周末' }] }
+      ],
+      onOk: function (d) {
+        C.DB.update(function (db) {
+          db.inventory.forEach(function (iv) {
+            var w = new Date(iv.date.replace(/-/g, '/')).getDay();
+            var isWeekend = w === 0 || w === 6;
+            if (d.mode === 'week' || (d.mode === 'weekend' && isWeekend) || (d.mode === 'workday' && !isWeekend)) {
+              iv.total = +d.total || iv.total;
+              if (iv.used > iv.total) iv.used = iv.total;
+            }
+          });
+        });
+        C.toast('批量设置已生效', 'ok'); render();
+      }
+    });
+  };
+
+  $('#btnExtend').onclick = function () {
+    C.DB.update(function (db) {
+      var last = db.inventory.map(function (x) { return x.date; }).sort().pop();
+      var d = new Date(last.replace(/-/g, '/'));
+      for (var i = 1; i <= 7; i++) {
+        var nd = new Date(d.getTime() + i * 86400000);
+        var s = nd.getFullYear() + '-' + C.pad(nd.getMonth() + 1) + '-' + C.pad(nd.getDate());
+        if (!db.inventory.some(function (x) { return x.date === s; })) db.inventory.push({ date: s, total: 4000, used: 0 });
+      }
+    });
+    C.toast('已延长 7 天库存日历', 'ok'); render();
+  };
+
+  document.addEventListener('click', function (e) {
+    var b;
+    if ((b = e.target.closest('[data-set]'))) { setCap(b.getAttribute('data-set')); }
+    if ((b = e.target.closest('[data-clear]'))) {
+      var date = b.getAttribute('data-clear');
+      C.confirmBox('将把该日期已预约数量重置为 0，确认操作？', function () {
+        C.DB.update(function (db) {
+          var o = db.inventory.filter(function (x) { return x.date === date; })[0];
+          if (o) o.used = 0;
+        });
+        C.toast('已清空该日期预约量', 'ok'); render();
+      }, { danger: true, okText: '清空' });
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

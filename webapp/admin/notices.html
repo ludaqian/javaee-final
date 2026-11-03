@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>公告管理 · 云栖山景区管理后台</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/admin.css">
+</head>
+<body>
+<div class="admin-shell" data-nav="notices">
+  <main class="admin-main" data-crumb="内容与资源 / 公告管理">
+    <div class="admin-body">
+
+      <div class="panel">
+        <div class="p-hd">
+          <h3>景区公告</h3>
+          <div class="filters">
+            <select class="select" id="fType">
+              <option value="">全部类型</option>
+              <option>限流</option><option>闭园</option><option>预约</option><option>活动</option><option>须知</option>
+            </select>
+            <button class="btn primary sm" id="btnAdd">+ 发布公告</button>
+          </div>
+        </div>
+        <div class="p-bd flush">
+          <div style="overflow-x:auto"><table class="table" id="tb"></table></div>
+          <div class="pager" style="padding:12px 16px"><span class="s12 muted" id="count"></span></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+(function () {
+  var C = CORE, $ = C.$;
+  var TYPES = ['限流', '闭园', '预约', '活动', '须知'];
+
+  function render() {
+    var type = $('#fType').value;
+    var list = C.DB.notices().filter(function (n) { return !type || n.type === type; });
+    $('#tb').innerHTML =
+      '<tr><th style="width:60px">置顶</th><th>公告标题</th><th>类型</th><th>发布日期</th><th>发布人</th><th style="width:160px">操作</th></tr>' +
+      list.map(function (n) {
+        var cls = { '限流': 'orange', '闭园': 'red', '预约': 'blue', '活动': 'green', '须知': 'gray' }[n.type] || 'gray';
+        return '<tr>' +
+          '<td>' + (n.top ? '<span class="tag red">顶</span>' : '') + '</td>' +
+          '<td><b>' + C.esc(n.title) + '</b><div class="s12 muted ell" style="max-width:520px">' + C.esc(n.content) + '</div></td>' +
+          '<td><span class="tag ' + cls + '">' + C.esc(n.type) + '</span></td>' +
+          '<td class="s12">' + n.date + '</td>' +
+          '<td class="s12">' + C.esc(n.author) + '</td>' +
+          '<td><button class="s12 primary" data-edit="' + n.id + '">编辑</button> ' +
+          '<button class="s12" data-top="' + n.id + '">' + (n.top ? '取消置顶' : '置顶') + '</button> ' +
+          '<button class="s12 danger" data-del="' + n.id + '">删除</button></td></tr>';
+      }).join('');
+    $('#count').textContent = '共 ' + list.length + ' 条公告';
+  }
+
+  function openForm(id) {
+    var n = id ? C.DB.notice(id) : { title: '', type: '须知', top: 0, content: '', author: '景区管理处', date: C.dstr(C.today(), 0) };
+    C.formDialog({
+      title: id ? '编辑公告' : '发布公告',
+      fields: [
+        { k: 'title', label: '公告标题', value: n.title, required: 1 },
+        { k: 'type', label: '公告类型', type: 'select', value: n.type, options: TYPES.map(function (t) { return { v: t, t: t }; }) },
+        { k: 'date', label: '发布日期', type: 'date', value: n.date },
+        { k: 'author', label: '发布部门', value: n.author },
+        { k: 'content', label: '公告正文', type: 'textarea', value: n.content },
+        { k: 'top', label: '置顶显示', type: 'switch', value: n.top }
+      ],
+      onOk: function (d) {
+        if (!d.title.trim()) { C.toast('请填写公告标题', 'err'); return false; }
+        if (!d.content.trim()) { C.toast('请填写公告正文', 'err'); return false; }
+        C.DB.update(function (db) {
+          var o = id ? db.notices.filter(function (x) { return x.id === id; })[0] : null;
+          if (!o) { o = { id: 'n' + (db.counters.notice++) }; db.notices.push(o); }
+          Object.assign(o, {
+            title: d.title.trim(), type: d.type, date: d.date, author: d.author,
+            content: d.content.trim(), top: +d.top
+          });
+        });
+        C.toast(id ? '公告已更新' : '公告已发布', 'ok');
+        render();
+      }
+    });
+  }
+
+  $('#btnAdd').onclick = function () { openForm(null); };
+  $('#fType').onchange = render;
+
+  $('#tb').addEventListener('click', function (e) {
+    var b;
+    if ((b = e.target.closest('[data-edit]'))) { openForm(b.getAttribute('data-edit')); }
+    if ((b = e.target.closest('[data-top]'))) {
+      var id1 = b.getAttribute('data-top');
+      C.DB.update(function (db) {
+        var o = db.notices.filter(function (x) { return x.id === id1; })[0];
+        if (o) o.top = o.top ? 0 : 1;
+      });
+      C.toast('已更新置顶状态', 'ok'); render();
+    }
+    if ((b = e.target.closest('[data-del]'))) {
+      var id2 = b.getAttribute('data-del');
+      C.confirmBox('确认删除该公告？删除后游客端将不再展示。', function () {
+        C.DB.update(function (db) { db.notices = db.notices.filter(function (x) { return x.id !== id2; }); });
+        C.toast('公告已删除', 'ok'); render();
+      }, { danger: true, okText: '删除' });
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
